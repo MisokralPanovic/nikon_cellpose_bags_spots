@@ -1,0 +1,25 @@
+{
+    "thickness_um": 20,
+    "channels_params": {
+        "brightfield": 0,
+        "spots": 1,
+        "bags": 2
+    },
+    "spot_channel_params": {
+        "FAM": false,
+        "TAMRA": true
+    },
+    "segmentation_params": {
+        "diameter": 676,
+        "model_name": "cpsam_20x_downsampeled_20250630",
+        "gpu": true
+    },
+    "spot_detection_params": {
+        "min_distance": 3,
+        "threshold_abs": 800
+    },
+    "background_sigma_params": {
+        "segmentation_sigma": 40,
+        "spot_sigma": 100
+    }
+}
