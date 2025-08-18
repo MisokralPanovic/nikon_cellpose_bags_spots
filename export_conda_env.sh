@@ -1,0 +1,1 @@
+conda env export --name cellpose-bags --no-builds > environment.yml
