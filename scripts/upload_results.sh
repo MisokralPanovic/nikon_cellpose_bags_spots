@@ -48,8 +48,8 @@ print_status "Current analysis folder: $FOLDER_NAME"
 # Check for file types to determine destination
 print_status "Checking file types in raw_files..."
 
-CZI_COUNT=$(find "$ANALYSIS_PATH/raw_files" -name "*.czi" -type f 2>/dev/null | wc -l)
-ND2_COUNT=$(find "$ANALYSIS_PATH/raw_files" -name "*.nd2" -type f 2>/dev/null | wc -l)
+CZI_COUNT=$(find "$ANALYSIS_PATH/raw_data" -name "*.czi" -type f 2>/dev/null | wc -l)
+ND2_COUNT=$(find "$ANALYSIS_PATH/raw_data" -name "*.nd2" -type f 2>/dev/null | wc -l)
 
 print_status "Found $CZI_COUNT .czi files and $ND2_COUNT .nd2 files"
 
