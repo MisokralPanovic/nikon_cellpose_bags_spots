@@ -48,6 +48,3 @@ def process_field_of_view(
     del spot_image
     
     return seg_projected, spots_projected
-
-
-

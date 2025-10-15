@@ -2,47 +2,56 @@
 this should be a function
 '''
 
-# Find all .czi and .nd2 files 
-nd2_files = list(raw_data_folder.glob('*.nd2'))
-czi_files = list(raw_data_folder.glob('*.czi'))
+def find_raw_files(raw_data_folder):
+    # Find all .czi and .nd2 files 
+    nd2_files = list(raw_data_folder.glob('*.nd2'))
+    czi_files = list(raw_data_folder.glob('*.czi'))
 
-# Check what files we have
-total_files = len(nd2_files) + len(czi_files)
-if total_files == 0:
-    raise FileNotFoundError("No .nd2 or .czi files found in raw_data folder")
+    # Check what files we have
+    total_files = len(nd2_files) + len(czi_files)
+    if total_files == 0:
+        raise FileNotFoundError("No .nd2 or .czi files found in raw_data folder")
 
-# Determine file type and print summary
-if nd2_files and czi_files:
-    raise ValueError("Mixed file types found. Please process .nd2 and .czi files separately.")
-elif nd2_files:
-    file_type = 'nd2'
-    files_to_process = nd2_files
-    print(f"Found {len(nd2_files)} .nd2 files to process:")
-    for file_path in nd2_files:
-        print(f"  - {file_path.name}")
-elif czi_files:
-    file_type = 'czi'
-    files_to_process = czi_files
-    print(f"Found {len(czi_files)} .czi files to process:")
-    for file_path in czi_files:
-        print(f"  - {file_path.name}")
+    # Determine file type and print summary
+    if nd2_files and czi_files:
+        raise ValueError("Mixed file types found. Please process .nd2 and .czi files separately.")
+    
+    elif nd2_files:
+        file_type = 'nd2'
+        files_to_process = nd2_files
+        print(f"Found {len(nd2_files)} .nd2 files to process:")
+        for file_path in nd2_files:
+            print(f"  - {file_path.name}")
+    
+    elif czi_files:
+        file_type = 'czi'
+        files_to_process = czi_files
+        print(f"Found {len(czi_files)} .czi files to process:")
+        for file_path in czi_files:
+            print(f"  - {file_path.name}")
+    
+    return file_type, files_to_process
 
 
 '''
 this should be a function
 '''
 
-def process_field_of_view(array, p, channels_params):
-    seg_data = array.isel(P=p, C=channels_params['brightfield'])
-    spots_data = array.isel(P=p, C=channels_params['spots'])
+def process_field_of_view_nd2(array, p, channels_params):
+    seg_image = array.isel(P=p, C=channels_params['brightfield'])
+    spots_image = array.isel(P=p, C=channels_params['spots'])
     
-    seg_projected = stdev_project(seg_data)
-    del seg_data
+    return seg_image, spots_image
+
+def process_field_of_view_czi(array, p, channels_params):
+    czi = CziFile(file_path)
+    seg_image, seg_info = czi.read_image(C=channels_params['brightfield'])
+    spots_image, spots_info = czi.read_image(C=channels_params['spots'])
     
-    spots_projected = stdev_project(spots_data)
-    del spots_data
+    del seg_info
+    del spots_info
     
-    return seg_projected, spots_projected
+    return seg_image, spots_image
 
 # Group CZI files by condition if needed
 if file_type == 'czi':
