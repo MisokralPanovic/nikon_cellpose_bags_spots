@@ -29,7 +29,7 @@ def stdev_project(
     return np.std(array, axis=0)
 
 def process_field_of_view(
-    seg_image: Union[xr.DataArray, np.ndarray], 
+    seg_image: Union[xr.DataArray, np.ndarray],
     spot_image: Union[xr.DataArray, np.ndarray]
     ) -> Tuple[np.ndarray, np.ndarray]:
     """Processes field of view by stdev projecting segmentation and spot images.
