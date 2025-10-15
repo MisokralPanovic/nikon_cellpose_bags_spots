@@ -83,7 +83,7 @@ def upsample_mask(
         np.ndarray: Segemntation masks upscaled to original dimentions.
     """
     original_height, original_width = original_shape[:2]
-    target_dimensions = (original_width, original_height) # cv2 uses (width, height)
+    target_dimensions = (original_width, original_height)
 
     upscaled_mask = cv2.resize(
         mask,

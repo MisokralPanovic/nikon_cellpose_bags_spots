@@ -12,13 +12,19 @@ def spot_tophat_correction(
     Args:
         image (np.ndarray): Input grayscale image as a 2D NumPy array.
         footprint (np.ndarray): Structuring element used for morphological filtering. 
+    
+    Raises:
+        ValueError: If white_tophat returns None. 
 
     Returns:
         np.ndarray: Image with enhanced bright spots, same shape as input.
     """
     corrected_spots = white_tophat(image, footprint)
     
-    return corrected_spots # type: ignore
+    if corrected_spots is None:
+        raise ValueError("white_tophat returned None. Please check the input image and footprint.")
+    
+    return corrected_spots
 
 def detect_spots_spotiflow(
     image: np.ndarray,
