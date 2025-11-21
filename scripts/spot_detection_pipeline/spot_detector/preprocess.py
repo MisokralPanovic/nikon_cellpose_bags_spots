@@ -5,7 +5,7 @@ from typing import Union, Tuple
 def stdev_project(
     array: Union[xr.DataArray, np.ndarray]
     ) -> np.ndarray:
-    """converts xarray to numpy array & squeezes numpy array & stdev projects it
+    """Converts xarray to numpy array & squeezes numpy array & stdev projects it
 
     Args:
         array (xarray | np.ndarray): Input grayscale image as a 2D NumPy array.

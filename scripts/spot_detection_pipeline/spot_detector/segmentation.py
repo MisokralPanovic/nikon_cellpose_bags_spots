@@ -4,8 +4,6 @@ import torch
 from cellpose import models
 from skimage.segmentation import clear_border
 
-
-
 def cellpose_bag(
     image: np.ndarray, 
     model_path: str, 
@@ -26,7 +24,7 @@ def cellpose_bag(
     """    
     model = models.CellposeModel(
         gpu = use_gpu,
-        pretrained_model = model_path
+        pretrained_model = model_path # TODO how to load from params
     )
     
     masks, flows, styles = model.eval(image)

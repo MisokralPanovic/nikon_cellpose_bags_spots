@@ -1,62 +1,103 @@
-'''
-this should be a function
-'''
+# %% load packages
+from pathlib import Path
+import nd2
+import xarray as xr
+from aicspylibczi import CziFile
+from aicsimageio import AICSImage
 
-def find_raw_files(raw_data_folder):
-    # Find all .czi and .nd2 files 
-    nd2_files = list(raw_data_folder.glob('*.nd2'))
-    czi_files = list(raw_data_folder.glob('*.czi'))
 
-    # Check what files we have
+# TODO add packages
+# TODO write function descriptions and error handling
+
+
+# %% getting files - common
+def find_raw_files(
+    raw_data_folder: Path
+    ) -> tuple[list[Path], list[Path]]:
+    '''Finds .nd2 and .czi files in a given folder and outputs a list of the files for each file type.
+    
+    Args:
+        raw_data_folder (Path): Path for .nd2 and .czi files.
+        
+    Raises:
+        FileNotFoundError: If no .nd2 or .czi files are found.
+    
+    Returns:
+        tuple[list[Path], list[Path]]: Tuple of lists of .nd2 image file paths, and .czi file paths.
+    '''
+    nd2_files = list(raw_data_folder.glob("*.nd2"))
+    czi_files = list(raw_data_folder.glob("*.czi"))
+
     total_files = len(nd2_files) + len(czi_files)
     if total_files == 0:
         raise FileNotFoundError("No .nd2 or .czi files found in raw_data folder")
 
-    # Determine file type and print summary
-    if nd2_files and czi_files:
-        raise ValueError("Mixed file types found. Please process .nd2 and .czi files separately.")
+    return nd2_files, czi_files
+
+# %% nd2
+def extract_data_nd2(
+    nd2_file: Path
+    ) -> tuple[str, xr.DataArray, float, int]:
+    '''Function description
+    Args:
     
-    elif nd2_files:
-        file_type = 'nd2'
-        files_to_process = nd2_files
-        print(f"Found {len(nd2_files)} .nd2 files to process:")
-        for file_path in nd2_files:
-            print(f"  - {file_path.name}")
+    Raises:
     
-    elif czi_files:
-        file_type = 'czi'
-        files_to_process = czi_files
-        print(f"Found {len(czi_files)} .czi files to process:")
-        for file_path in czi_files:
-            print(f"  - {file_path.name}")
+    Returns:
     
-    return file_type, files_to_process
+    '''
+    # error for if no file present
+    
+    condition = nd2_file.stem
+        
+    array = nd2.imread(nd2_file, xarray=True, dask=True)
+    
+    with nd2.ND2File(nd2_file) as file:
+        pixel_size_um = file.voxel_size().x
+        num_filed_of_view = file.sizes['P']
+    
+    return condition, array, pixel_size_um, num_filed_of_view
 
 
-'''
-this should be a function
-'''
 
-def process_field_of_view_nd2(array, p, channels_params):
-    seg_image = array.isel(P=p, C=channels_params['brightfield'])
-    spots_image = array.isel(P=p, C=channels_params['spots'])
+def process_field_of_view_nd2(
+    array, 
+    field_of_view, 
+    brightfield_channel, 
+    spots_channel
+    ):
+    '''Function description
+    Args:
+    
+    Raises:
+    
+    Returns:
+    
+    '''
+    # TODO sort how to do params
+    seg_image = array.isel(P=field_of_view, C=brightfield_channel)
+    spots_image = array.isel(P=field_of_view, C=spots_channel)
     
     return seg_image, spots_image
 
-def process_field_of_view_czi(array, p, channels_params):
-    czi = CziFile(file_path)
-    seg_image, seg_info = czi.read_image(C=channels_params['brightfield'])
-    spots_image, spots_info = czi.read_image(C=channels_params['spots'])
-    
-    del seg_info
-    del spots_info
-    
-    return seg_image, spots_image
+# TODO make combined function?
 
-# Group CZI files by condition if needed
-if file_type == 'czi':
+
+# %% czi
+def czi_group_conditions(
+    czi_files
+    ):
+    '''Function description
+    Args:
+    
+    Raises:
+    
+    Returns:
+    
+    '''    
     condition_groups = {}
-    for file_path in files_to_process:
+    
+    for file_path in czi_files:
         filename = file_path.stem
         parts = filename.split('_')
         if len(parts) >= 2 and parts[-1].isdigit():
@@ -73,59 +114,46 @@ if file_type == 'czi':
     # Sort files within each condition by field number
     for condition in condition_groups:
         condition_groups[condition].sort(key=lambda x: x[1])
+    
+    return condition_groups
 
-results = []
+def extract_data_czi(
+    czi_file
+    ):
+    '''Function description
+    Args:
+    
+    Raises:
+    
+    Returns:
+    
+    '''    
+    img = AICSImage(czi_file)
+    pixel_size_um = img.physical_pixel_sizes.X
+    
+    del img
+    
+    return pixel_size_um
 
-
-
-
-if file_type == 'nd2':
-    # Process ND2 files
-    for file_path in files_to_process:
-        condition = file_path.stem
-        print(f"\n{'='*50}")
-        print(f"Processing {condition}...")
-        print(f"{'='*50}")
-        
-        try:
-            array = nd2.imread(file_path, xarray=True, dask=True)
-            with nd2.ND2File(file_path) as nd2_file:
-                pixel_size_um = nd2_file.voxel_size().x
-                num_positions = nd2_file.sizes['P']
-                
-                for p in tqdm(range(num_positions), desc=f"Processing {condition}"):
-                    print(f"\n  Field of view {p+1}/{num_positions}")
-                    
-                    # Load and process one field of view
-                    seg_image, spots_image = process_field_of_view(array, p, channels_params)
-
-
-else:  # file_type == 'czi'
-    # Process CZI files
-    for condition, file_list in condition_groups.items():
-        print(f"\n{'='*50}")
-        print(f"Processing {condition}...")
-        print(f"{'='*50}")
-        
-        for file_path, field_num in tqdm(file_list, desc=f"Processing {condition}"):
-            print(f"\n  Field of view {field_num}")
-            
-            try:
-                # Load CZI file - adjust channel numbers as needed
-                czi = CziFile(file_path)
-                
-                seg_image, seg_info = czi.read_image(C=channels_params['brightfield'])
-                spots_image, spots_info = czi.read_image(C=channels_params['spots'])
-                
-                seg_image = np.squeeze(seg_image)
-                spots_image = np.squeeze(spots_image)
-                
-                seg_image = np.std(seg_image, axis=0)
-                del seg_info
-    # Cell 7: Save results to files
-                spots_image = np.std(spots_image, axis=0)
-                del spots_info
-                
-                img = AICSImage(file_path)
-                pixel_size_um = img.physical_pixel_sizes.X
+def process_field_of_view_czi(
+    array, 
+    brightfield_channel, 
+    spots_channel
+    ):
+    '''Function description
+    Args:
+    
+    Raises:
+    
+    Returns:
+    
+    '''    
+    czi = CziFile(array)
+    seg_image, seg_info = czi.read_image(C=brightfield_channel)
+    spots_image, spots_info = czi.read_image(C=spots_channel)
+    
+    del seg_info
+    del spots_info
+    
+    return seg_image, spots_image
                 
