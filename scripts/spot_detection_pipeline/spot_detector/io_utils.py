@@ -1,4 +1,5 @@
 # %% load packages
+from typing import NamedTuple
 from pathlib import Path
 import nd2
 import xarray as xr
@@ -35,16 +36,24 @@ def find_raw_files(
     return nd2_files, czi_files
 
 # %% nd2
+
+class ND2Data(NamedTuple):
+    """Complete data from ND2 file."""
+    condition: str
+    array: xr.DataArray
+    pixel_size_um: float
+    num_fields: int
+
 def extract_data_nd2(
     nd2_file: Path
-    ) -> tuple[str, xr.DataArray, float, int]:
+    ) -> ND2Data:
     '''Function description
     Args:
-    
+        nd2_file (Path): Path for single .nd2 file.
     Raises:
     
     Returns:
-    
+        ND2Data: Named tuple with condition, array, pixel_size_um, num_fields.
     '''
     # error for if no file present
     
@@ -54,11 +63,14 @@ def extract_data_nd2(
     
     with nd2.ND2File(nd2_file) as file:
         pixel_size_um = file.voxel_size().x
-        num_filed_of_view = file.sizes['P']
+        num_fields = file.sizes['P']
     
-    return condition, array, pixel_size_um, num_filed_of_view
-
-
+    return ND2Data(
+        condition=condition,
+        array=array,
+        pixel_size_um=pixel_size_um,
+        num_fields=num_fields
+    )
 
 def process_field_of_view_nd2(
     array, 
@@ -79,9 +91,6 @@ def process_field_of_view_nd2(
     spots_image = array.isel(P=field_of_view, C=spots_channel)
     
     return seg_image, spots_image
-
-# TODO make combined function?
-
 
 # %% czi
 def czi_group_conditions(
