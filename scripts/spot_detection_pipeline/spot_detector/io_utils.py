@@ -5,7 +5,7 @@ from pathlib import Path
 import nd2
 import xarray as xr
 from aicspylibczi import CziFile
-from aicsimageio import AICSImage
+from aicsimageio.aics_image import AICSImage
 
 # todo error handling
 
