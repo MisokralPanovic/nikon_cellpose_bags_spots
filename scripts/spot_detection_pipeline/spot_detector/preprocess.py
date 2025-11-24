@@ -2,6 +2,8 @@ import numpy as np
 import xarray as xr
 from typing import Union, Tuple
 
+# todo error handling
+
 def stdev_project(
     array: Union[xr.DataArray, np.ndarray]
     ) -> np.ndarray:
@@ -37,6 +39,8 @@ def process_field_of_view(
     Args:
         seg_image (Union[xr.DataArray, np.ndarray]): Segmentation image stack.
         spot_image (Union[xr.DataArray, np.ndarray]): Spot image stack.
+    
+    Raises:
 
     Returns:
         Tuple[np.ndarray, np.ndarray]: Stdev projected segmentation and spot images. 

@@ -1,15 +1,13 @@
 # %% load packages
-from typing import NamedTuple
+from typing import NamedTuple, Tuple
+import numpy as np
 from pathlib import Path
 import nd2
 import xarray as xr
 from aicspylibczi import CziFile
 from aicsimageio import AICSImage
 
-
-# TODO add packages
-# TODO write function descriptions and error handling
-
+# todo error handling
 
 # %% getting files - common
 def find_raw_files(
@@ -47,9 +45,10 @@ class ND2Data(NamedTuple):
 def extract_data_nd2(
     nd2_file: Path
     ) -> ND2Data:
-    '''Function description
+    '''Extracts condition, array, pixel_size_um, and num_fields metadata from .nd2 file.
     Args:
         nd2_file (Path): Path for single .nd2 file.
+        
     Raises:
     
     Returns:
@@ -73,20 +72,24 @@ def extract_data_nd2(
     )
 
 def process_field_of_view_nd2(
-    array, 
-    field_of_view, 
-    brightfield_channel, 
-    spots_channel
-    ):
-    '''Function description
-    Args:
+    array: xr.DataArray, 
+    field_of_view: int,
+    brightfield_channel: int,
+    spots_channel: int
+    ) -> Tuple[xr.DataArray, xr.DataArray]:
+    '''Extracts segmentation and spot image from a single field of view of nd2 array.
     
+    Args:
+        array (xr.DataArray): X Array of multiple channels, z-stacks and fields of view.
+        field_of_view (int): Number of which field of view to extract.
+        brightfield_channel (int): Index of brightfield channel.
+        spots_channel (int): Index of spot channel.
+        
     Raises:
     
     Returns:
-    
+        Tuple[xr.DataArray, xr.DataArray]: Xarray of seg channel and spot channel.    
     '''
-    # TODO sort how to do params
     seg_image = array.isel(P=field_of_view, C=brightfield_channel)
     spots_image = array.isel(P=field_of_view, C=spots_channel)
     
@@ -94,15 +97,18 @@ def process_field_of_view_nd2(
 
 # %% czi
 def czi_group_conditions(
-    czi_files
-    ):
-    '''Function description
+    czi_files: list[Path]
+    ) -> dict[str, list[tuple[Path, int]]]:
+    '''Extracts condition group names from the file stems of a list of .czi files.
     Args:
-    
+        czi_files (list[Path]): A list of .czi files.
+        
     Raises:
     
     Returns:
-    
+        dict[str, list[tuple[Path, int]]]: A dictionary mapping condition names to lists of tuples. Each tuple contains:
+            - Path: the original file path
+            - int: the field number extracted from the filename
     '''    
     condition_groups = {}
     
@@ -126,16 +132,17 @@ def czi_group_conditions(
     
     return condition_groups
 
-def extract_data_czi(
-    czi_file
-    ):
-    '''Function description
+def extract_pixelSize_czi(
+    czi_file: Path
+    ) -> float | None:
+    '''Extracts pixel size in um from .czi file.
     Args:
-    
+        czi_file (Path): A path to .czi file.
+        
     Raises:
     
     Returns:
-    
+        float | None: Pixel size in um.
     '''    
     img = AICSImage(czi_file)
     pixel_size_um = img.physical_pixel_sizes.X
@@ -145,19 +152,21 @@ def extract_data_czi(
     return pixel_size_um
 
 def process_field_of_view_czi(
-    array, 
-    brightfield_channel, 
-    spots_channel
-    ):
-    '''Function description
+    path: Path, 
+    brightfield_channel: int, 
+    spots_channel: int
+    ) -> Tuple[np.ndarray, np.ndarray]:
+    '''Extracts segmentation and spot image from a single field of view of .czi file.
     Args:
-    
+        path (Path): Path to .czi file.
+        brightfield_channel (int): Index of brightfield channel.
+        spots_channel (int): Index of spot channel.
     Raises:
     
     Returns:
-    
+        Tuple[np.ndarray, np.ndarray]: Numpy array of seg channel and spot channel.   
     '''    
-    czi = CziFile(array)
+    czi = CziFile(path)
     seg_image, seg_info = czi.read_image(C=brightfield_channel)
     spots_image, spots_info = czi.read_image(C=spots_channel)
     
