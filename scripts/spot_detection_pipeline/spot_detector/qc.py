@@ -1,3 +1,7 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib_scalebar.scalebar import ScaleBar
+
 class MicroscopyQC:
     def __init__(self, figsize=(15, 10), dpi=300):
         plt.ioff()
@@ -69,7 +73,7 @@ class MicroscopyQC:
                 flow_viz = 0.5 * (1 + getattr(flow_details, 'flow', flow_details))
                 axes[5].imshow(flow_viz)
             except Exception as e:
-                axes[5].text(0.5, 0.5, 'No Flow Data', ha='center', va='center',
+                axes[5].text(0.5, 0.5, 'No Flow Data', ha='center', va='center', 
                              transform=axes[5].transAxes, fontsize=12, color='gray')
         axes[5].set_title('Stereographic Flow', fontsize=12)
 

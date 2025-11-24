@@ -1,9 +1,19 @@
+# experiment metadata
+experiment:
+  thickness_um: 20
+
 # paths
 paths:
   raw_data: "raw_data"
   figures: "figures"
   processed_data: "processed_data"
   cellpose_models: "../_pipeline_assets/cellpose_models"
+
+# channels
+channels:
+  brightfield: 0
+  spots: 1
+  bags: 2
 
 # cellpose segmentation
 segmentation:
@@ -21,3 +31,13 @@ detection:
   - [0, 1, 1, 1, 0]
   - [1, 0, 1, 0, 1]
   min_distance: 10
+
+# analysis parameters
+analysis:
+  min_roi_area_um2: 3000
+
+# QC figure settings
+qc:
+  save_figure: true
+  dpi: 300
+  figsize: [10, 8]

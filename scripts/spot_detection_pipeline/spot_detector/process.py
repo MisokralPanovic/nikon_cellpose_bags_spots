@@ -1,3 +1,20 @@
+# %% import
+import logging
+from pathlib import Path
+from typing import Dict, List
+import gc
+
+import numpy as np
+from tqdm import tqdm
+
+from spot_detector.io_utils import (
+    find_raw_files, 
+)
+
+logger = logging.getLogger(__name__)
+
+# %% loop
+
 
 
 
