@@ -1,7 +1,3 @@
-# experiment metadata
-experiment:
-  thickness_um: 20
-
 # paths
 paths:
   raw_data: "raw_data"
@@ -35,6 +31,7 @@ detection:
 # analysis parameters
 analysis:
   min_roi_area_um2: 3000
+  thickness_um: 20
 
 # QC figure settings
 qc:
