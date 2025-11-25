@@ -24,7 +24,7 @@ def cellpose_bag(
     """    
     model = models.CellposeModel(
         gpu = use_gpu,
-        pretrained_model = model_path # TODO how to load from params
+        pretrained_model = model_path
     )
     
     masks, flows, styles = model.eval(image)
