@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from matplotlib_scalebar.scalebar import ScaleBar
 
 class MicroscopyQC:
