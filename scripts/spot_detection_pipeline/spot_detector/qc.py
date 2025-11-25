@@ -30,7 +30,7 @@ class MicroscopyQC:
     ...     pixel_size_um=0.65
     ... )
     """
-    def __init__(self, figsize: Tuple[int, int] = (15, 10), dpi: int = 300):
+    def __init__(self, figsize: Tuple[float, float] = (15, 10), dpi: int = 300):
         """Initial QC figure generator.
 
         Args:
@@ -233,7 +233,7 @@ def create_qc_figure(
     mask_alpha: float = 0.3,
     save_figures: bool = True,
     dpi: int = 300,
-    figsize: Tuple[float, float] = (10.0, 8.0)
+    figsize: Tuple[float, float] = (10, 8)
     ) -> None:
     """Convenience function to create QC figure without instantiating class.
 
