@@ -49,10 +49,10 @@ def setup_paths(config: dict, experiment_folder: Path) -> dict:
     config['paths']['figures'].mkdir(exist_ok=True, parents=True)
     config['paths']['processed_data'].mkdir(exist_ok=True, parents=True)
     
-    if not config['paths']['raw_data'].exist():
+    if not config['paths']['raw_data'].exists():
         raise FileNotFoundError(f"Raw data folder not found: {config['paths']['raw_data']}")
     
-    if not config['paths']['model_file'].exist():
+    if not config['paths']['model_file'].exists():
         raise FileNotFoundError(f"Model file not found: {config['paths']['model_file']}")
     
     logger.info(f"Experiment: {config['experiment']['name']}")

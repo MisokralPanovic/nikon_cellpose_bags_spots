@@ -38,3 +38,6 @@ qc:
   save_figure: true
   dpi: 300
   figsize: [10, 8]
+
+experiment:
+  thickness_um: 20
