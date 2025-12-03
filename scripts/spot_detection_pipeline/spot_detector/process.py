@@ -1,3 +1,7 @@
+# spot_detector/process.py
+"""
+Main pipeline processing orchestration.
+"""
 # %% package import
 import logging
 from pathlib import Path
