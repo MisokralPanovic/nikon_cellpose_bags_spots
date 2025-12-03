@@ -86,7 +86,7 @@ def assign_spots_to_mask(
 
 def calculate_roi_properties(
     mask: np.ndarray,
-    pixel_size_um: float,
+    pixel_size_um: float | None,
     thickness_um: float
     ) -> tuple[float, float, float]:
     """Calculate ROI area and volume.
@@ -100,7 +100,12 @@ def calculate_roi_properties(
         tuple[float, float, float]: Tuple of ROI: area in pixels, area in um2, and volume in um3.
     """
     area_pixels = np.sum(mask)
-    area_um2 = area_pixels * (pixel_size_um ** 2)
+
+    if pixel_size_um is None:
+        area_um2 = 0.0
+    else:
+        area_um2 = area_pixels * (pixel_size_um ** 2)
+
     volume_um3 = area_um2 * thickness_um
     
     return area_pixels, area_um2, volume_um3
@@ -108,7 +113,7 @@ def calculate_roi_properties(
 def analyze_rois_memory_efficient(
     masks: np.ndarray, 
     coords_spotiflow: np.ndarray | list, 
-    pixel_size_um: float, 
+    pixel_size_um: float | None, 
     thickness_um: float
     ) -> Tuple[List[Dict], List]:
     """Analyze each ROI: count spots, calculate areas/volumes.

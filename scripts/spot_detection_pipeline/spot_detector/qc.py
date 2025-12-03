@@ -52,7 +52,7 @@ class MicroscopyQC:
         condition: str,
         image_num: int,
         output_path: Path,
-        pixel_size_um: float,
+        pixel_size_um: float | None,
         percentile_range: Tuple[float, float] = (1, 99.8),
         downsample_factor: int = 8,
         mask_alpha: float = 0.3
@@ -135,7 +135,7 @@ class MicroscopyQC:
         axes[5].set_title(f'Detections ({len(coordinates)} spots)', fontsize=12)
 
         # Add scale bar
-        if pixel_size_um > 0:
+        if pixel_size_um != None and pixel_size_um > 0:
             scalebar = ScaleBar(
                 pixel_size_um, units='um', 
                 location='lower right', box_alpha=0.8, 
@@ -227,7 +227,7 @@ def create_qc_figure(
     condition: str,
     image_num: int,
     output_path: Path,
-    pixel_size_um: float,
+    pixel_size_um: float | None,
     percentile_range: Tuple[float, float] = (1, 99.8),
     downsample_factor: int = 8,
     mask_alpha: float = 0.3,
