@@ -52,6 +52,31 @@ def main():
     logger = logging.getLogger(__name__)
     
     try:
+        logger.info("="*60)
+        logger.info("Spot Detection Pipeline")
+        logger.info("="*60)
+        logger.info(f"Experiment folder: {experiment_folder}")
+        logger.info(f"Config file: {config_path}")
+        
+        logger.info("Loading configuration...")
+        config = load_config(config_path)
+        config = setup_paths(config, experiment_folder)
+        
+        logger.info("Configuration loaded successfully")
+        logger.info(f"Raw data: {config['paths']['raw_data']}")
+        logger.info(f"Output: {config['paths']['processed_data']}")
+        
+        results = run_pipeline(config)
+        
+        logger.info("="*60)
+        logger.info(f"Pipeline completed successfully!")
+        logger.info(f"Analyzed {len(results)} ROIs")
+        logger.info(f"Results saved to: {config['paths']['processed_data']}")
+        logger.info("="*60)
+        
+        return 0
+    
+    except:
         pass
     
     except:
