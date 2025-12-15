@@ -76,8 +76,16 @@ def main():
         
         return 0
     
-    except:
-        pass
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        return 1
     
-    except:
-        pass
+    except Exception as e:
+        logger.error("="*60)
+        logger.error(f"Pipeline failed with error: {type(e).__name__}: {e}")
+        logger.error("="*60)
+        logger.exception("Full traceback:")
+        return 1
+
+if __name__ == '__main__':
+    sys.exit(main())
