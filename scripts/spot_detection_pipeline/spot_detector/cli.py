@@ -89,25 +89,23 @@ def main():
         action='version',
         version='Spot Detection Pipeline v0.1.0'
     )
-    
+
     args = parser.parse_args()
-    
-    '''
-    # Determine paths
+
     experiment_folder = args.experiment_dir if args.experiment_dir else Path.cwd()
     experiment_folder = experiment_folder.resolve()
-    
+
     if args.config:
         config_path = args.config
     else:
         # Default to config.yml in package directory
         config_path = Path(__file__).parent.parent / 'config.yml'
-    
+
     if args.log_file:
         log_file = args.log_file
     else:
         log_file = experiment_folder / 'processed_data' / 'pipeline.log'
-    
+
     # Setup logging
     setup_logging(verbose=args.verbose, log_file=log_file)
     logger = logging.getLogger(__name__)
@@ -135,22 +133,19 @@ def main():
         logger.info("="*60)
         
         return 0
-        
+    
     except FileNotFoundError as e:
-        logger.error(f"❌ File not found: {e}")
+        logger.error(f"File not found: {e}")
         return 1
-        
+    
     except Exception as e:
         logger.error("="*60)
-        logger.error(f"❌ Pipeline failed:")
-        logger.error(f"❌ {type(e).__name__}: {e}")
+        logger.error(f"Pipeline failed:")
+        logger.error(f" {type(e).__name__}: {e}")
         logger.error("="*60)
         if args.verbose:
-            logger.exception("Full traceback:")
+            logger.exception("Fill traceback:")
         return 1
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
-    
-    '''
