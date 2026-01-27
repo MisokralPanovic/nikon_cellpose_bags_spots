@@ -274,9 +274,9 @@ def process_single_field(
     logger.info(f"   Running spot detection for {condition}_{image_num}")
     points, details = detect_spots_spotiflow(corrected_spots, **det_params)
     if num_rois > 0:
-        logger.info(f"   Found {points} spots, {points / num_rois:.1f} spots per ROI")
+        logger.info(f"   Found {len(points)} spots, {len(points) / num_rois:.1f} spots per ROI")
     else:
-        logger.info(f"   Found {points} spots, no ROIs available")
+        logger.info(f"   Found {len(points)} spots, no ROIs available")
     
     roi_results, roi_coords_spotiflow = analyze_rois_memory_efficient(masks=filtered_masks, coords_spotiflow=points, pixel_size_um=pixel_size_um, thickness_um=analysis_params['thickness_um'])
 
@@ -302,6 +302,7 @@ def process_single_field(
             segmentation_image=seg_projected,
             spots=spots_projected,
             coordinates=roi_coords_spotiflow,
+            corrected_spots=corrected_spots,
             masks=filtered_masks,
             flow_details=details,
             condition=condition,

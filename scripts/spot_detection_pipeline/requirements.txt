@@ -1,4 +1,8 @@
-# todo fnish and double check this!
+# requirements.txt
+# For users who prefer pip-only installation
+# 
+# If using conda, use environment.yml instead:
+#   conda env create -f environment.yml
 
 # Core scientific computing
 numpy>=1.24.0
@@ -31,5 +35,5 @@ pyyaml>=6.0
 tqdm>=4.65.0
 openpyxl>=3.1.0
 
-# Optional but recommended
-jupyterlab>=4.0.0  # For notebook development
+# Optional
+jupyterlab>=4.0.0
