@@ -169,9 +169,17 @@ class MicroscopyQC:
 
         Returns:
             Tuple[float, float]: Tuple of (min, max) intensity values.
+        
+        Notes:
+        If min == max (constant image), returns (min, min+1) to avoid matplotlib errors.
         """
         downsampeled = image[::downsample_factor, ::downsample_factor]
-        return tuple(np.percentile(downsampeled, percentile_range))
+        vmin, vmax = tuple(np.percentile(downsampeled, percentile_range))
+        
+        if vmin >= vmax:
+            vmax = vmin + 1.0
+        
+        return (vmin, vmax)
     
     @staticmethod
     def _plot_flow_field(ax: Axes, flow_details: SimpleNamespace) -> None:

@@ -345,3 +345,425 @@ IndexError: Index 6 is out of bounds for axis 0 with size 6
 2026-01-27 17:14:23,286 - __main__ - INFO - Analyzed 13 ROIs
 2026-01-27 17:14:23,286 - __main__ - INFO - Results saved to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
 2026-01-27 17:14:23,286 - __main__ - INFO - ============================================================
+2026-01-28 10:25:26,435 - __main__ - INFO - ============================================================
+2026-01-28 10:25:26,436 - __main__ - INFO - Spot Detection Pipeline
+2026-01-28 10:25:26,436 - __main__ - INFO - ============================================================
+2026-01-28 10:25:26,436 - __main__ - INFO - Experiment folder: /home/michalv/Analysis/nikon_cellpose_bags_spots
+2026-01-28 10:25:26,436 - __main__ - INFO - Config file: /home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/config.yml
+2026-01-28 10:25:26,436 - __main__ - INFO - Loading configuration...
+2026-01-28 10:25:26,439 - spot_detector.config - INFO - Experiment: nikon_cellpose_bags_spots
+2026-01-28 10:25:26,439 - __main__ - INFO - Configuration loaded successfully
+2026-01-28 10:25:26,439 - __main__ - INFO - Raw data: /home/michalv/Analysis/nikon_cellpose_bags_spots/raw_data
+2026-01-28 10:25:26,439 - __main__ - INFO - Output: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
+2026-01-28 10:25:26,439 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:25:26,439 - spot_detector.process - INFO - Starting pipeline processing
+2026-01-28 10:25:26,439 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:25:26,439 - spot_detector.process - INFO - Found 3 .ND2 files.
+2026-01-28 10:25:26,439 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:25:26,439 - spot_detector.process - INFO - Processing allON_HP.nd2
+2026-01-28 10:25:26,439 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:25:29,569 - spot_detector.process - INFO -    Running segmentation for allON_HP_1
+2026-01-28 10:25:29,891 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:25:29,891 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:25:31,382 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:25:31,890 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:25:32,755 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 10:25:32,755 - spot_detector.process - INFO -    Running spot detection for allON_HP_1
+2026-01-28 10:25:32,755 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:25:34,083 - spot_detector.process - INFO -    Found 440 spots, 440.0 spots per ROI
+2026-01-28 10:25:40,525 - spot_detector.process - INFO -    Running segmentation for allON_HP_2
+2026-01-28 10:25:40,531 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:25:40,532 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:25:41,994 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:25:42,394 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:25:42,601 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 10:25:42,602 - spot_detector.process - INFO -    Running spot detection for allON_HP_2
+2026-01-28 10:25:42,602 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:25:43,660 - spot_detector.process - INFO -    Found 1213 spots, 606.5 spots per ROI
+2026-01-28 10:25:48,996 - spot_detector.process - INFO -    Running segmentation for allON_HP_3
+2026-01-28 10:25:49,002 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:25:49,002 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:25:50,520 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:25:50,922 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:25:51,348 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 10:25:51,348 - spot_detector.process - INFO -    Running spot detection for allON_HP_3
+2026-01-28 10:25:51,348 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:25:52,424 - spot_detector.process - INFO -    Found 723 spots, 723.0 spots per ROI
+2026-01-28 10:26:01,901 - spot_detector.process - INFO -    Running segmentation for allON_HP_4
+2026-01-28 10:26:01,910 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:26:01,910 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:26:03,372 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:26:03,600 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:26:03,782 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 10:26:03,782 - spot_detector.process - INFO -    Running spot detection for allON_HP_4
+2026-01-28 10:26:03,783 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:26:04,792 - spot_detector.process - INFO -    Found 698 spots, 698.0 spots per ROI
+2026-01-28 10:26:11,155 - spot_detector.process - INFO -    Running segmentation for allON_HP_5
+2026-01-28 10:26:11,162 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:26:11,162 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:26:12,554 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:26:12,793 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:26:12,969 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 10:26:12,969 - spot_detector.process - INFO -    Running spot detection for allON_HP_5
+2026-01-28 10:26:12,969 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:26:13,985 - spot_detector.process - INFO -    Found 680 spots, 680.0 spots per ROI
+2026-01-28 10:26:20,488 - spot_detector.process - INFO -    Running segmentation for allON_HP_6
+2026-01-28 10:26:20,497 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:26:20,497 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:26:21,961 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:26:22,356 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:26:22,582 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 10:26:22,582 - spot_detector.process - INFO -    Running spot detection for allON_HP_6
+2026-01-28 10:26:22,582 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:26:23,612 - spot_detector.process - INFO -    Found 801 spots, 801.0 spots per ROI
+2026-01-28 10:26:26,675 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:26:26,675 - spot_detector.process - INFO - Processing lig1ON_P.nd2
+2026-01-28 10:26:26,675 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:26:29,715 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_1
+2026-01-28 10:26:29,722 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:26:29,722 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:26:31,176 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:26:31,409 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:26:31,592 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 10:26:31,592 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_1
+2026-01-28 10:26:31,592 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:26:32,602 - spot_detector.process - INFO -    Found 926 spots, 463.0 spots per ROI
+2026-01-28 10:26:40,248 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_2
+2026-01-28 10:26:40,255 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:26:40,255 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:26:41,758 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:26:41,989 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:26:42,166 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 10:26:42,166 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_2
+2026-01-28 10:26:42,167 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:26:43,166 - spot_detector.process - INFO -    Found 944 spots, 472.0 spots per ROI
+2026-01-28 10:26:50,873 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_3
+2026-01-28 10:26:50,879 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:26:50,879 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:26:52,361 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:26:52,590 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:26:52,780 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 10:26:52,780 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_3
+2026-01-28 10:26:52,780 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:26:53,789 - spot_detector.process - INFO -    Found 899 spots, 449.5 spots per ROI
+2026-01-28 10:26:59,774 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_4
+2026-01-28 10:26:59,780 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:26:59,780 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:27:01,171 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:27:01,395 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:27:01,567 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 10:27:01,567 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_4
+2026-01-28 10:27:01,567 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:27:02,576 - spot_detector.process - INFO -    Found 448 spots, 448.0 spots per ROI
+2026-01-28 10:27:08,777 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_5
+2026-01-28 10:27:08,784 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:27:08,784 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:27:10,339 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:27:10,567 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:27:10,757 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 10:27:10,757 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_5
+2026-01-28 10:27:10,757 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:27:11,787 - spot_detector.process - INFO -    Found 944 spots, 472.0 spots per ROI
+2026-01-28 10:27:17,854 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_6
+2026-01-28 10:27:17,860 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:27:17,860 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:27:19,367 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:27:19,598 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 10:27:19,767 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 10:27:19,768 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_6
+2026-01-28 10:27:19,768 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:27:20,803 - spot_detector.process - INFO -    Found 499 spots, 499.0 spots per ROI
+2026-01-28 10:27:24,084 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:27:24,084 - spot_detector.process - INFO - Processing P_None_No.nd2
+2026-01-28 10:27:24,084 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:27:30,429 - spot_detector.process - INFO -    Running segmentation for P_None_No_1
+2026-01-28 10:27:30,436 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 10:27:30,436 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 10:27:31,936 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 10:27:32,168 - cellpose.transforms - INFO - processing grayscale image with (204, 174) HW
+2026-01-28 10:27:32,252 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-01-28 10:27:32,295 - spot_detector.process - INFO -    Found 0 ROIs
+2026-01-28 10:27:32,295 - spot_detector.process - INFO -    Running spot detection for P_None_No_1
+2026-01-28 10:27:32,295 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 10:27:33,461 - spot_detector.process - INFO -    Found 2 spots, no ROIs available
+2026-01-28 10:27:34,459 - spot_detector.process - ERROR - Failed to process P_None_No.nd2: minvalue must be less than or equal to maxvalue
+Traceback (most recent call last):
+  File "/home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/spot_detector/process.py", line 139, in process_nd2_files
+    roi_results = process_single_field(
+                  ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/spot_detector/process.py", line 301, in process_single_field
+    create_qc_figure(
+  File "/home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/spot_detector/qc.py", line 275, in create_qc_figure
+    qc.create_qc_figure(
+  File "/home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/spot_detector/qc.py", line 149, in create_qc_figure
+    fig.savefig(
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/figure.py", line 3490, in savefig
+    self.canvas.print_figure(fname, **kwargs)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/backends/backend_qtagg.py", line 75, in print_figure
+    super().print_figure(*args, **kwargs)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/backend_bases.py", line 2157, in print_figure
+    self.figure.draw(renderer)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/artist.py", line 94, in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/figure.py", line 3257, in draw
+    mimage._draw_list_compositing_images(
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 134, in _draw_list_compositing_images
+    a.draw(renderer)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/axes/_base.py", line 3226, in draw
+    mimage._draw_list_compositing_images(
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 134, in _draw_list_compositing_images
+    a.draw(renderer)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 609, in draw
+    im, l, b, trans = self.make_image(
+                      ^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 912, in make_image
+    return self._make_image(self._A, bbox, transformed_bbox, clip,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 503, in _make_image
+    A = self.to_rgba(A)
+        ^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/colorizer.py", line 367, in to_rgba
+    return self._colorizer.to_rgba(x, alpha=alpha, bytes=bytes, norm=norm)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/colorizer.py", line 157, in to_rgba
+    x = self.norm(x)
+        ^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/colors.py", line 2286, in __call__
+    raise ValueError("minvalue must be less than or equal to maxvalue")
+ValueError: minvalue must be less than or equal to maxvalue
+2026-01-28 10:27:34,476 - spot_detector.process - INFO - Processing finished! Analysed 16 ROIs total.
+2026-01-28 10:27:34,490 - spot_detector.save_data - INFO - Saved .csv to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data/nikon_cellpose_bags_spots_results.csv
+2026-01-28 10:27:34,645 - spot_detector.save_data - INFO - Saved .xlsx to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data/nikon_cellpose_bags_spots_results.xlsx
+2026-01-28 10:27:34,645 - spot_detector.save_data - INFO - Total ROIs: 16
+2026-01-28 10:27:34,646 - spot_detector.save_data - INFO - Conditions: 2
+2026-01-28 10:27:34,646 - spot_detector.save_data - INFO - Total spots: 8621
+2026-01-28 10:27:34,646 - spot_detector.save_data - INFO - Average spots per ROI: 538.8 ± 126.4
+2026-01-28 10:27:35,268 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:27:35,268 - spot_detector.process - INFO - Pipeline finished
+2026-01-28 10:27:35,268 - spot_detector.process - INFO - ============================================================
+2026-01-28 10:27:35,268 - __main__ - INFO - ============================================================
+2026-01-28 10:27:35,268 - __main__ - INFO - Pipeline completed successfully!
+2026-01-28 10:27:35,268 - __main__ - INFO - Analyzed 16 ROIs
+2026-01-28 10:27:35,268 - __main__ - INFO - Results saved to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
+2026-01-28 10:27:35,268 - __main__ - INFO - ============================================================
+2026-01-28 11:01:45,026 - __main__ - INFO - ============================================================
+2026-01-28 11:01:45,026 - __main__ - INFO - Spot Detection Pipeline
+2026-01-28 11:01:45,026 - __main__ - INFO - ============================================================
+2026-01-28 11:01:45,026 - __main__ - INFO - Experiment folder: /home/michalv/Analysis/nikon_cellpose_bags_spots
+2026-01-28 11:01:45,027 - __main__ - INFO - Config file: /home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/config.yml
+2026-01-28 11:01:45,027 - __main__ - INFO - Loading configuration...
+2026-01-28 11:01:45,031 - spot_detector.config - INFO - Experiment: nikon_cellpose_bags_spots
+2026-01-28 11:01:45,031 - __main__ - INFO - Configuration loaded successfully
+2026-01-28 11:01:45,031 - __main__ - INFO - Raw data: /home/michalv/Analysis/nikon_cellpose_bags_spots/raw_data
+2026-01-28 11:01:45,031 - __main__ - INFO - Output: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
+2026-01-28 11:01:45,031 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:01:45,031 - spot_detector.process - INFO - Starting pipeline processing
+2026-01-28 11:01:45,031 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:01:45,031 - spot_detector.process - INFO - Found 3 .ND2 files.
+2026-01-28 11:01:45,031 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:01:45,031 - spot_detector.process - INFO - Processing allON_HP.nd2
+2026-01-28 11:01:45,031 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:01:48,761 - spot_detector.process - INFO -    Running segmentation for allON_HP_1
+2026-01-28 11:01:49,066 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:01:49,067 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:01:50,493 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:01:50,746 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:01:52,089 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 11:01:52,089 - spot_detector.process - INFO -    Running spot detection for allON_HP_1
+2026-01-28 11:01:52,089 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:01:53,869 - spot_detector.process - INFO -    Found 440 spots, 440.0 spots per ROI
+2026-01-28 11:02:03,896 - spot_detector.process - INFO -    Running segmentation for allON_HP_2
+2026-01-28 11:02:03,903 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:02:03,903 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:02:05,417 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:02:05,652 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:02:05,909 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 11:02:05,909 - spot_detector.process - INFO -    Running spot detection for allON_HP_2
+2026-01-28 11:02:05,909 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:02:06,954 - spot_detector.process - INFO -    Found 1213 spots, 606.5 spots per ROI
+2026-01-28 11:02:12,245 - spot_detector.process - INFO -    Running segmentation for allON_HP_3
+2026-01-28 11:02:12,252 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:02:12,252 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:02:13,713 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:02:14,134 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:02:14,582 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 11:02:14,583 - spot_detector.process - INFO -    Running spot detection for allON_HP_3
+2026-01-28 11:02:14,583 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:02:15,683 - spot_detector.process - INFO -    Found 723 spots, 723.0 spots per ROI
+2026-01-28 11:02:21,208 - spot_detector.process - INFO -    Running segmentation for allON_HP_4
+2026-01-28 11:02:21,215 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:02:21,215 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:02:22,631 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:02:22,863 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:02:23,041 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 11:02:23,041 - spot_detector.process - INFO -    Running spot detection for allON_HP_4
+2026-01-28 11:02:23,041 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:02:24,044 - spot_detector.process - INFO -    Found 698 spots, 698.0 spots per ROI
+2026-01-28 11:02:29,364 - spot_detector.process - INFO -    Running segmentation for allON_HP_5
+2026-01-28 11:02:29,370 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:02:29,371 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:02:30,765 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:02:31,009 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:02:31,173 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 11:02:31,173 - spot_detector.process - INFO -    Running spot detection for allON_HP_5
+2026-01-28 11:02:31,174 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:02:32,207 - spot_detector.process - INFO -    Found 680 spots, 680.0 spots per ROI
+2026-01-28 11:02:38,569 - spot_detector.process - INFO -    Running segmentation for allON_HP_6
+2026-01-28 11:02:38,575 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:02:38,575 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:02:40,192 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:02:40,425 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:02:40,601 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 11:02:40,601 - spot_detector.process - INFO -    Running spot detection for allON_HP_6
+2026-01-28 11:02:40,601 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:02:41,644 - spot_detector.process - INFO -    Found 801 spots, 801.0 spots per ROI
+2026-01-28 11:02:44,679 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:02:44,679 - spot_detector.process - INFO - Processing lig1ON_P.nd2
+2026-01-28 11:02:44,679 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:02:47,946 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_1
+2026-01-28 11:02:47,952 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:02:47,952 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:02:49,411 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:02:49,666 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:02:49,841 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 11:02:49,841 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_1
+2026-01-28 11:02:49,841 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:02:50,848 - spot_detector.process - INFO -    Found 926 spots, 463.0 spots per ROI
+2026-01-28 11:02:57,618 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_2
+2026-01-28 11:02:57,624 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:02:57,625 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:02:59,023 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:02:59,260 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:02:59,457 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 11:02:59,457 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_2
+2026-01-28 11:02:59,457 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:03:00,478 - spot_detector.process - INFO -    Found 944 spots, 472.0 spots per ROI
+2026-01-28 11:03:05,528 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_3
+2026-01-28 11:03:05,534 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:03:05,534 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:03:06,980 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:03:07,210 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:03:07,386 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 11:03:07,387 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_3
+2026-01-28 11:03:07,387 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:03:08,411 - spot_detector.process - INFO -    Found 899 spots, 449.5 spots per ROI
+2026-01-28 11:03:14,531 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_4
+2026-01-28 11:03:14,537 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:03:14,537 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:03:15,966 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:03:16,205 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:03:16,372 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 11:03:16,372 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_4
+2026-01-28 11:03:16,372 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:03:17,370 - spot_detector.process - INFO -    Found 448 spots, 448.0 spots per ROI
+2026-01-28 11:03:24,184 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_5
+2026-01-28 11:03:24,190 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:03:24,190 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:03:25,788 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:03:26,038 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:03:26,215 - spot_detector.process - INFO -    Found 2 ROIs
+2026-01-28 11:03:26,215 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_5
+2026-01-28 11:03:26,215 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:03:27,281 - spot_detector.process - INFO -    Found 944 spots, 472.0 spots per ROI
+2026-01-28 11:03:33,832 - spot_detector.process - INFO -    Running segmentation for lig1ON_P_6
+2026-01-28 11:03:33,838 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:03:33,838 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:03:35,573 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:03:35,808 - cellpose.transforms - INFO - processing grayscale image with (204, 160) HW
+2026-01-28 11:03:35,998 - spot_detector.process - INFO -    Found 1 ROIs
+2026-01-28 11:03:35,998 - spot_detector.process - INFO -    Running spot detection for lig1ON_P_6
+2026-01-28 11:03:35,998 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:03:37,024 - spot_detector.process - INFO -    Found 499 spots, 499.0 spots per ROI
+2026-01-28 11:03:40,285 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:03:40,285 - spot_detector.process - INFO - Processing P_None_No.nd2
+2026-01-28 11:03:40,285 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:03:44,168 - spot_detector.process - INFO -    Running segmentation for P_None_No_1
+2026-01-28 11:03:44,176 - cellpose.core - INFO - ** TORCH CUDA version installed and working. **
+2026-01-28 11:03:44,176 - cellpose.core - INFO - >>>> using GPU (CUDA)
+2026-01-28 11:03:45,600 - cellpose.models - INFO - >>>> loading model /home/michalv/Analysis/_pipeline_assets/cellpose_models/cpsam_20x_downsampeled_20250630
+2026-01-28 11:03:45,829 - cellpose.transforms - INFO - processing grayscale image with (204, 174) HW
+2026-01-28 11:03:45,914 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-01-28 11:03:45,958 - spot_detector.process - INFO -    Found 0 ROIs
+2026-01-28 11:03:45,958 - spot_detector.process - INFO -    Running spot detection for P_None_No_1
+2026-01-28 11:03:45,958 - spotiflow.model.spotiflow - INFO - Loading pretrained model: general
+2026-01-28 11:03:47,078 - spot_detector.process - INFO -    Found 2 spots, no ROIs available
+2026-01-28 11:03:48,094 - spot_detector.process - ERROR - Failed to process P_None_No.nd2: minvalue must be less than or equal to maxvalue
+Traceback (most recent call last):
+  File "/home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/spot_detector/process.py", line 139, in process_nd2_files
+    roi_results = process_single_field(
+                  ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/spot_detector/process.py", line 301, in process_single_field
+    create_qc_figure(
+  File "/home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/spot_detector/qc.py", line 283, in create_qc_figure
+    qc.create_qc_figure(
+  File "/home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/spot_detector/qc.py", line 149, in create_qc_figure
+    fig.savefig(
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/figure.py", line 3490, in savefig
+    self.canvas.print_figure(fname, **kwargs)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/backends/backend_qtagg.py", line 75, in print_figure
+    super().print_figure(*args, **kwargs)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/backend_bases.py", line 2157, in print_figure
+    self.figure.draw(renderer)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/artist.py", line 94, in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/figure.py", line 3257, in draw
+    mimage._draw_list_compositing_images(
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 134, in _draw_list_compositing_images
+    a.draw(renderer)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/axes/_base.py", line 3226, in draw
+    mimage._draw_list_compositing_images(
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 134, in _draw_list_compositing_images
+    a.draw(renderer)
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 609, in draw
+    im, l, b, trans = self.make_image(
+                      ^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 912, in make_image
+    return self._make_image(self._A, bbox, transformed_bbox, clip,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/image.py", line 503, in _make_image
+    A = self.to_rgba(A)
+        ^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/colorizer.py", line 367, in to_rgba
+    return self._colorizer.to_rgba(x, alpha=alpha, bytes=bytes, norm=norm)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/colorizer.py", line 157, in to_rgba
+    x = self.norm(x)
+        ^^^^^^^^^^^^
+  File "/home/michalv/miniforge3/envs/spot_detector/lib/python3.11/site-packages/matplotlib/colors.py", line 2286, in __call__
+    raise ValueError("minvalue must be less than or equal to maxvalue")
+ValueError: minvalue must be less than or equal to maxvalue
+2026-01-28 11:03:48,105 - spot_detector.process - INFO - Processing finished! Analysed 16 ROIs total.
+2026-01-28 11:03:48,117 - spot_detector.save_data - INFO - Saved .csv to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data/nikon_cellpose_bags_spots_results.csv
+2026-01-28 11:03:48,248 - spot_detector.save_data - INFO - Saved .xlsx to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data/nikon_cellpose_bags_spots_results.xlsx
+2026-01-28 11:03:48,248 - spot_detector.save_data - INFO - Total ROIs: 16
+2026-01-28 11:03:48,249 - spot_detector.save_data - INFO - Conditions: 2
+2026-01-28 11:03:48,249 - spot_detector.save_data - INFO - Total spots: 8621
+2026-01-28 11:03:48,249 - spot_detector.save_data - INFO - Average spots per ROI: 538.8 ± 126.4
+2026-01-28 11:03:48,872 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:03:48,872 - spot_detector.process - INFO - Pipeline finished
+2026-01-28 11:03:48,872 - spot_detector.process - INFO - ============================================================
+2026-01-28 11:03:48,872 - __main__ - INFO - ============================================================
+2026-01-28 11:03:48,872 - __main__ - INFO - Pipeline completed successfully!
+2026-01-28 11:03:48,872 - __main__ - INFO - Analyzed 16 ROIs
+2026-01-28 11:03:48,872 - __main__ - INFO - Results saved to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
+2026-01-28 11:03:48,872 - __main__ - INFO - ============================================================

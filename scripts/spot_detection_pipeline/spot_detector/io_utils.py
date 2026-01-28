@@ -90,8 +90,8 @@ def process_field_of_view_nd2(
     Returns:
         Tuple[xr.DataArray, xr.DataArray]: Xarray of seg channel and spot channel.    
     '''
-    seg_image = array.isel(P=field_of_view, C=brightfield_channel)
-    spots_image = array.isel(P=field_of_view, C=spots_channel)
+    seg_image = array.isel(P=field_of_view-1, C=brightfield_channel)
+    spots_image = array.isel(P=field_of_view-1, C=spots_channel)
     
     return seg_image, spots_image
 
