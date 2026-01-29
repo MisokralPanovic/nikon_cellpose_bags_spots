@@ -120,9 +120,13 @@ class MicroscopyQC:
         # Panel 5: Segmentation + Masks
         axes[4].imshow(segmentation_image, cmap='gray', clim=seg_clim)
         if masks is not None:
-            mask_overlay = np.ma.masked_where(masks == 0, masks)
-            axes[4].imshow(mask_overlay, alpha=mask_alpha, cmap='tab10', vmin=1)
-        axes[4].set_title(f'Masks ({masks.max() if masks is not None else 0} ROIs)', fontsize=12)
+            num_rios = masks.max() if masks is not None else 0
+            if num_rios > 0:
+                mask_overlay = np.ma.masked_where(masks == 0, masks)
+                axes[4].imshow(mask_overlay, alpha=mask_alpha, cmap='tab10', vmin=1)
+                axes[4].set_title(f'Masks ({num_rios} ROIs)', fontsize=12)
+            else:
+                axes[4].set_title('Masks (0 ROIs)', fontsize=12)
 
         # Panel 6: Spots + Detections
         axes[5].imshow(spots, cmap="magma", clim=spot_clim)

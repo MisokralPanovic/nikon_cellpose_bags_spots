@@ -1,8 +1,16 @@
-- Fix negative data figure making
 - Verbose output to include number of fields, and less repetitave
-- remove data from tables if running again
+
+
+
+
+
+
 - test what conda does if constructing the same env again
     - add if exist statement
 - compare old and new enviroment.yml
 - test running pipeline from command line
-- 
+- paralelise if possible
+- skip field and continue to another if there is an error
+- nextflow
+- cluster compatible with load module
+- bash for data manipulation, github cloning etc
