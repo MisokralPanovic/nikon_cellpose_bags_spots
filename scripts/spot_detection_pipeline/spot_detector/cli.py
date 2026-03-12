@@ -24,18 +24,40 @@ def setup_logging(verbose: bool = False, log_file: Optional[Path] = None) -> Non
         verbose (bool, optional): If True, set log level to DEBUG. Defaults to False.
         log_file (Optional[Path], optional): Optional path to log file. Defaults to None.
     """
-    level = logging.DEBUG if verbose else logging.INFO
-    handlers = [logging.StreamHandler()]
+    handlers = []
     
+    # Console handler
+    console_handler = logging.StreamHandler()
+    if verbose:
+        console_handler.setFormatter(
+            logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        )
+    else:
+        console_handler.setFormatter(
+            logging.Formatter('%(levelname)s - %(message)s')
+        )
+    handlers.append(console_handler)
+    
+    # File handler
     if log_file:
         log_file.parent.mkdir(exist_ok=True, parents=True)
-        handlers.append(logging.FileHandler(log_file)) # type: ignore
-        
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=handlers
-    )
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(
+            logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        )
+        handlers.append(file_handler)
+    
+    # Configure root logger
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(level=level, handlers=handlers)
+    
+    # Suppress noisy libraries
+    if not verbose:
+        for lib in ['cellpose', 'cellpose.core', 'cellpose.models', 
+                    'cellpose.transforms', 'cellpose.dynamics',
+                    'spotiflow', 'spotiflow.model', 'spotiflow.model.spotiflow',
+                    'matplotlib', 'PIL']:
+            logging.getLogger(lib).setLevel(logging.WARNING)
     
 def main():
     """Main CLI entry point."""
@@ -127,9 +149,9 @@ def main():
         results = run_pipeline(config)
         
         logger.info("="*60)
-        logger.info(f"✅ Pipeline completed successfully!")
-        logger.info(f"✅ Analyzed {len(results)} ROIs")
-        logger.info(f"✅ Results: {config['paths']['processed_data']}")
+        logger.info(f"Pipeline completed successfully!")
+        logger.info(f"Analyzed {len(results)} ROIs")
+        logger.info(f"Results: {config['paths']['processed_data']}")
         logger.info("="*60)
         
         return 0

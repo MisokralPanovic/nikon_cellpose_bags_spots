@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 
 # %% main loop
 
-
 def run_pipeline(config: Dict) -> List[Dict]:
     """Main pipeline orchestration.
     Processes all ND2 and CZI files found in raw_data folder, runs segmentation

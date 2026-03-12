@@ -23,23 +23,63 @@ if str(package_dir) not in sys.path:
 from spot_detector.config import load_config, setup_paths
 from spot_detector.process import run_pipeline
 
-def setup_logging(log_file: Path | None = None) -> None:
+def setup_logging(log_file: Path | None = None, verbose: bool = False) -> None:
     """Configure logging to console and optionally to file.
 
     Args:
         log_file (Path, optional): Optional path to log file. If provided, logs are written to both console and file. Defaults to None.
+        verbose (bool): If True, show DEBUG level and library logs
     """
     handlers = [logging.StreamHandler()]
     
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(
+        logging.Formatter('%(levelname)s - %(message)s')
+    )
+    handlers.append(console_handler)
+    
     if log_file:
         log_file.parent.mkdir(exist_ok=True, parents=True)
-        handlers.append(logging.FileHandler(log_file)) # type: ignore
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(
+            logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        )
+        handlers.append(file_handler) # type: ignore
         
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=handlers
     )
+    
+    # Suppress noisy libraries in console (but keep in file)
+    if not verbose:
+        # Silence cellpose
+        logging.getLogger('cellpose').setLevel(logging.WARNING)
+        logging.getLogger('cellpose.core').setLevel(logging.WARNING)
+        logging.getLogger('cellpose.models').setLevel(logging.WARNING)
+        logging.getLogger('cellpose.transforms').setLevel(logging.WARNING)
+        logging.getLogger('cellpose.dynamics').setLevel(logging.WARNING)
+        
+        # Silence spotiflow
+        logging.getLogger('spotiflow').setLevel(logging.WARNING)
+        logging.getLogger('spotiflow.model').setLevel(logging.WARNING)
+        logging.getLogger('spotiflow.model.spotiflow').setLevel(logging.WARNING)
+        
+        # Silence matplotlib
+        logging.getLogger('matplotlib').setLevel(logging.WARNING)
+        logging.getLogger('PIL').setLevel(logging.WARNING)
+    
+    # Only log detailed info to file, not console
+    if log_file and not verbose:
+        # Keep detailed logs in file
+        for logger_name in ['cellpose', 'spotiflow']:
+            logger = logging.getLogger(logger_name)
+            # Remove console handler for these loggers
+            logger.handlers = [h for h in logger.handlers if not isinstance(h, logging.StreamHandler)]
+            # Add file handler
+            logger.addHandler(file_handler) # type: ignore
+        
 
 def main():
     """Main entry point for the pipeline."""
