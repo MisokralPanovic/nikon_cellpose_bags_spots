@@ -58,4 +58,4 @@ dependencies:
       - matplotlib-scalebar>=0.8.0
       
       # Install local package in editable mode
-      - -e .
+      # - -e .

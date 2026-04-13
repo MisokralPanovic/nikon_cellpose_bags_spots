@@ -124,3 +124,273 @@
 2026-03-12 14:31:22,807 - __main__ - INFO - Analyzed 25 ROIs
 2026-03-12 14:31:22,807 - __main__ - INFO - Results saved to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
 2026-03-12 14:31:22,807 - __main__ - INFO - ============================================================
+2026-04-13 10:50:08,636 - __main__ - INFO - ============================================================
+2026-04-13 10:50:08,637 - __main__ - INFO - Spot Detection Pipeline
+2026-04-13 10:50:08,637 - __main__ - INFO - ============================================================
+2026-04-13 10:50:08,637 - __main__ - INFO - Experiment folder: /home/michalv/Analysis/nikon_cellpose_bags_spots
+2026-04-13 10:50:08,637 - __main__ - INFO - Config file: /home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/config.yml
+2026-04-13 10:50:08,637 - __main__ - INFO - Loading configuration...
+2026-04-13 10:50:08,640 - spot_detector.config - INFO - Experiment: nikon_cellpose_bags_spots
+2026-04-13 10:50:08,640 - __main__ - INFO - Configuration loaded successfully
+2026-04-13 10:50:08,640 - __main__ - INFO - Raw data: /home/michalv/Analysis/nikon_cellpose_bags_spots/raw_data
+2026-04-13 10:50:08,640 - __main__ - INFO - Output: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
+2026-04-13 10:50:08,640 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:50:08,640 - spot_detector.process - INFO - Starting pipeline processing
+2026-04-13 10:50:08,640 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:50:08,641 - spot_detector.process - INFO - Found 3 .ND2 files.
+2026-04-13 10:50:08,641 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:50:08,641 - spot_detector.process - INFO - Processing allON_HP.nd2
+2026-04-13 10:50:08,641 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:50:13,787 - spot_detector.process - INFO -    Running segmentation for allON_HP_1
+2026-04-13 10:50:16,647 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 10:50:16,647 - spot_detector.process - INFO -    Running spot detection for allON_HP_1
+2026-04-13 10:50:17,950 - spot_detector.process - INFO -    Found 440 spots, 440.0 spots per ROI
+2026-04-13 10:50:24,840 - spot_detector.process - INFO -    Running segmentation for allON_HP_2
+2026-04-13 10:50:26,799 - spot_detector.process - INFO -    Found 2 ROIs
+2026-04-13 10:50:26,799 - spot_detector.process - INFO -    Running spot detection for allON_HP_2
+2026-04-13 10:50:27,965 - spot_detector.process - INFO -    Found 1214 spots, 607.0 spots per ROI
+2026-04-13 10:50:32,788 - spot_detector.process - INFO -    Running segmentation for allON_HP_3
+2026-04-13 10:50:34,564 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 10:50:34,564 - spot_detector.process - INFO -    Running spot detection for allON_HP_3
+2026-04-13 10:50:35,608 - spot_detector.process - INFO -    Found 723 spots, 723.0 spots per ROI
+2026-04-13 10:50:41,052 - spot_detector.process - INFO -    Running segmentation for allON_HP_4
+2026-04-13 10:50:43,185 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 10:50:43,185 - spot_detector.process - INFO -    Running spot detection for allON_HP_4
+2026-04-13 10:50:44,286 - spot_detector.process - INFO -    Found 698 spots, 698.0 spots per ROI
+2026-04-13 10:50:50,597 - spot_detector.process - INFO -    Running segmentation for allON_HP_5
+2026-04-13 10:50:52,558 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 10:50:52,558 - spot_detector.process - INFO -    Running spot detection for allON_HP_5
+2026-04-13 10:50:53,645 - spot_detector.process - INFO -    Found 680 spots, 680.0 spots per ROI
+2026-04-13 10:50:59,784 - spot_detector.process - INFO -    Running segmentation for allON_HP_6
+2026-04-13 10:51:01,996 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 10:51:01,996 - spot_detector.process - INFO -    Running spot detection for allON_HP_6
+2026-04-13 10:51:03,117 - spot_detector.process - INFO -    Found 801 spots, 801.0 spots per ROI
+2026-04-13 10:51:06,097 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:51:06,097 - spot_detector.process - INFO - Processing P_None_No.nd2
+2026-04-13 10:51:06,097 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:51:09,896 - spot_detector.process - INFO -    Running segmentation for P_None_No_1
+2026-04-13 10:51:11,664 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-04-13 10:51:11,664 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-04-13 10:51:11,715 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 10:51:11,715 - spot_detector.process - INFO -    Running spot detection for P_None_No_1
+2026-04-13 10:51:12,824 - spot_detector.process - INFO -    Found 2 spots, no ROIs available
+2026-04-13 10:51:18,521 - spot_detector.process - INFO -    Running segmentation for P_None_No_2
+2026-04-13 10:51:20,368 - spot_detector.process - INFO -    Found 2 ROIs
+2026-04-13 10:51:20,368 - spot_detector.process - INFO -    Running spot detection for P_None_No_2
+2026-04-13 10:51:21,468 - spot_detector.process - INFO -    Found 340 spots, 170.0 spots per ROI
+2026-04-13 10:51:31,004 - spot_detector.process - INFO -    Running segmentation for P_None_No_3
+2026-04-13 10:51:32,769 - spot_detector.process - INFO -    Found 2 ROIs
+2026-04-13 10:51:32,770 - spot_detector.process - INFO -    Running spot detection for P_None_No_3
+2026-04-13 10:51:33,875 - spot_detector.process - INFO -    Found 232 spots, 116.0 spots per ROI
+2026-04-13 10:51:42,945 - spot_detector.process - INFO -    Running segmentation for P_None_No_4
+2026-04-13 10:51:44,761 - spot_detector.process - INFO -    Found 3 ROIs
+2026-04-13 10:51:44,761 - spot_detector.process - INFO -    Running spot detection for P_None_No_4
+2026-04-13 10:51:45,910 - spot_detector.process - INFO -    Found 402 spots, 134.0 spots per ROI
+2026-04-13 10:51:53,585 - spot_detector.process - INFO -    Running segmentation for P_None_No_5
+2026-04-13 10:51:55,574 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 10:51:55,574 - spot_detector.process - INFO -    Running spot detection for P_None_No_5
+2026-04-13 10:51:56,712 - spot_detector.process - INFO -    Found 313 spots, no ROIs available
+2026-04-13 10:52:02,914 - spot_detector.process - INFO -    Running segmentation for P_None_No_6
+2026-04-13 10:52:04,952 - spot_detector.process - INFO -    Found 3 ROIs
+2026-04-13 10:52:04,952 - spot_detector.process - INFO -    Running spot detection for P_None_No_6
+2026-04-13 10:52:06,083 - spot_detector.process - INFO -    Found 360 spots, 120.0 spots per ROI
+2026-04-13 10:52:12,275 - spot_detector.process - INFO -    Running segmentation for P_None_No_7
+2026-04-13 10:52:14,204 - spot_detector.process - INFO -    Found 5 ROIs
+2026-04-13 10:52:14,205 - spot_detector.process - INFO -    Running spot detection for P_None_No_7
+2026-04-13 10:52:15,326 - spot_detector.process - INFO -    Found 544 spots, 108.8 spots per ROI
+2026-04-13 10:52:24,523 - spot_detector.process - INFO -    Running segmentation for P_None_No_8
+2026-04-13 10:52:26,359 - spot_detector.process - INFO -    Found 2 ROIs
+2026-04-13 10:52:26,360 - spot_detector.process - INFO -    Running spot detection for P_None_No_8
+2026-04-13 10:52:27,446 - spot_detector.process - INFO -    Found 301 spots, 150.5 spots per ROI
+2026-04-13 10:52:34,805 - spot_detector.process - INFO -    Running segmentation for P_None_No_9
+2026-04-13 10:52:36,565 - spot_detector.process - INFO -    Found 2 ROIs
+2026-04-13 10:52:36,565 - spot_detector.process - INFO -    Running spot detection for P_None_No_9
+2026-04-13 10:52:37,684 - spot_detector.process - INFO -    Found 339 spots, 169.5 spots per ROI
+2026-04-13 10:52:44,163 - spot_detector.process - INFO -    Running segmentation for P_None_No_10
+2026-04-13 10:52:45,933 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 10:52:45,933 - spot_detector.process - INFO -    Running spot detection for P_None_No_10
+2026-04-13 10:52:47,026 - spot_detector.process - INFO -    Found 217 spots, no ROIs available
+2026-04-13 10:52:50,341 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:52:50,341 - spot_detector.process - INFO - Processing None_0.nd2
+2026-04-13 10:52:50,341 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:52:53,578 - spot_detector.process - INFO -    Running segmentation for None_0_1
+2026-04-13 10:52:55,342 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 10:52:55,342 - spot_detector.process - INFO -    Running spot detection for None_0_1
+2026-04-13 10:52:56,478 - spot_detector.process - INFO -    Found 16 spots, 16.0 spots per ROI
+2026-04-13 10:53:03,106 - spot_detector.process - INFO -    Running segmentation for None_0_2
+2026-04-13 10:53:05,105 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 10:53:05,106 - spot_detector.process - INFO -    Running spot detection for None_0_2
+2026-04-13 10:53:06,222 - spot_detector.process - INFO -    Found 17 spots, no ROIs available
+2026-04-13 10:53:12,157 - spot_detector.process - INFO -    Running segmentation for None_0_3
+2026-04-13 10:53:14,116 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 10:53:14,116 - spot_detector.process - INFO -    Running spot detection for None_0_3
+2026-04-13 10:53:15,263 - spot_detector.process - INFO -    Found 6 spots, 6.0 spots per ROI
+2026-04-13 10:53:24,496 - spot_detector.process - INFO -    Running segmentation for None_0_4
+2026-04-13 10:53:26,224 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-04-13 10:53:26,224 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-04-13 10:53:26,275 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 10:53:26,275 - spot_detector.process - INFO -    Running spot detection for None_0_4
+2026-04-13 10:53:27,370 - spot_detector.process - INFO -    Found 21 spots, no ROIs available
+2026-04-13 10:53:33,210 - spot_detector.process - INFO -    Running segmentation for None_0_5
+2026-04-13 10:53:35,201 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 10:53:35,201 - spot_detector.process - INFO -    Running spot detection for None_0_5
+2026-04-13 10:53:36,348 - spot_detector.process - INFO -    Found 12 spots, 12.0 spots per ROI
+2026-04-13 10:53:40,020 - spot_detector.process - INFO - Processing finished! Analysed 24 ROIs total.
+2026-04-13 10:53:40,043 - spot_detector.save_data - INFO - Saved .csv to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data/nikon_cellpose_bags_spots_results.csv
+2026-04-13 10:53:40,212 - spot_detector.save_data - INFO - Saved .xlsx to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data/nikon_cellpose_bags_spots_results.xlsx
+2026-04-13 10:53:40,212 - spot_detector.save_data - INFO - Total ROIs: 24
+2026-04-13 10:53:40,212 - spot_detector.save_data - INFO - Conditions: 3
+2026-04-13 10:53:40,212 - spot_detector.save_data - INFO - Total spots: 6187
+2026-04-13 10:53:40,213 - spot_detector.save_data - INFO - Average spots per ROI: 257.8 ± 266.7
+2026-04-13 10:53:40,936 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:53:40,936 - spot_detector.process - INFO - Pipeline finished
+2026-04-13 10:53:40,936 - spot_detector.process - INFO - ============================================================
+2026-04-13 10:53:40,936 - __main__ - INFO - ============================================================
+2026-04-13 10:53:40,936 - __main__ - INFO - Pipeline completed successfully!
+2026-04-13 10:53:40,936 - __main__ - INFO - Analyzed 24 ROIs
+2026-04-13 10:53:40,936 - __main__ - INFO - Results saved to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
+2026-04-13 10:53:40,936 - __main__ - INFO - ============================================================
+2026-04-13 11:25:52,268 - __main__ - INFO - ============================================================
+2026-04-13 11:25:52,268 - __main__ - INFO - Spot Detection Pipeline
+2026-04-13 11:25:52,268 - __main__ - INFO - ============================================================
+2026-04-13 11:25:52,268 - __main__ - INFO - Experiment folder: /home/michalv/Analysis/nikon_cellpose_bags_spots
+2026-04-13 11:25:52,269 - __main__ - INFO - Config file: /home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/config.yml
+2026-04-13 11:25:52,269 - __main__ - INFO - Loading configuration...
+2026-04-13 11:25:52,274 - spot_detector.config - INFO - Experiment: nikon_cellpose_bags_spots
+2026-04-13 11:25:52,274 - __main__ - INFO - Configuration loaded successfully
+2026-04-13 11:25:52,274 - __main__ - INFO - Raw data: /home/michalv/Analysis/nikon_cellpose_bags_spots/raw_data
+2026-04-13 11:25:52,274 - __main__ - INFO - Output: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
+2026-04-13 11:25:52,274 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:25:52,274 - spot_detector.process - INFO - Starting pipeline processing
+2026-04-13 11:25:52,274 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:25:52,274 - spot_detector.process - INFO - Found 3 .ND2 files.
+2026-04-13 11:25:52,274 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:25:52,275 - spot_detector.process - INFO - Processing allON_HP.nd2
+2026-04-13 11:25:52,275 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:25:54,246 - spot_detector.process - INFO -    Running segmentation for allON_HP_1
+2026-04-13 11:27:02,963 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 11:27:02,963 - spot_detector.process - INFO -    Running spot detection for allON_HP_1
+2026-04-13 11:27:10,269 - spot_detector.process - INFO -    Found 440 spots, 440.0 spots per ROI
+2026-04-13 11:27:15,511 - spot_detector.process - INFO -    Running segmentation for allON_HP_2
+2026-04-13 11:28:24,405 - spot_detector.process - INFO -    Found 2 ROIs
+2026-04-13 11:28:24,405 - spot_detector.process - INFO -    Running spot detection for allON_HP_2
+2026-04-13 11:28:31,239 - spot_detector.process - INFO -    Found 1214 spots, 607.0 spots per ROI
+2026-04-13 11:28:35,829 - spot_detector.process - INFO -    Running segmentation for allON_HP_3
+2026-04-13 11:29:44,900 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 11:29:44,900 - spot_detector.process - INFO -    Running spot detection for allON_HP_3
+2026-04-13 11:29:51,718 - spot_detector.process - INFO -    Found 723 spots, 723.0 spots per ROI
+2026-04-13 11:29:56,445 - spot_detector.process - INFO -    Running segmentation for allON_HP_4
+2026-04-13 11:31:05,649 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 11:31:05,649 - spot_detector.process - INFO -    Running spot detection for allON_HP_4
+2026-04-13 11:31:12,372 - spot_detector.process - INFO -    Found 699 spots, 699.0 spots per ROI
+2026-04-13 11:31:16,998 - spot_detector.process - INFO -    Running segmentation for allON_HP_5
+2026-04-13 11:32:26,476 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 11:32:26,477 - spot_detector.process - INFO -    Running spot detection for allON_HP_5
+2026-04-13 11:32:33,316 - spot_detector.process - INFO -    Found 680 spots, 680.0 spots per ROI
+2026-04-13 11:32:38,007 - spot_detector.process - INFO -    Running segmentation for allON_HP_6
+2026-04-13 11:33:46,757 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 11:33:46,757 - spot_detector.process - INFO -    Running spot detection for allON_HP_6
+2026-04-13 11:33:53,291 - spot_detector.process - INFO -    Found 801 spots, 801.0 spots per ROI
+2026-04-13 11:33:56,329 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:33:56,329 - spot_detector.process - INFO - Processing P_None_No.nd2
+2026-04-13 11:33:56,329 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:33:58,086 - spot_detector.process - INFO -    Running segmentation for P_None_No_1
+2026-04-13 11:35:06,552 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-04-13 11:35:06,552 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-04-13 11:35:06,583 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 11:35:06,583 - spot_detector.process - INFO -    Running spot detection for P_None_No_1
+2026-04-13 11:35:14,005 - spot_detector.process - INFO -    Found 2 spots, no ROIs available
+2026-04-13 11:35:18,805 - spot_detector.process - INFO -    Running segmentation for P_None_No_2
+2026-04-13 11:36:27,717 - spot_detector.process - INFO -    Found 3 ROIs
+2026-04-13 11:36:27,717 - spot_detector.process - INFO -    Running spot detection for P_None_No_2
+2026-04-13 11:36:34,631 - spot_detector.process - INFO -    Found 341 spots, 113.7 spots per ROI
+2026-04-13 11:36:40,091 - spot_detector.process - INFO -    Running segmentation for P_None_No_3
+2026-04-13 11:37:48,313 - spot_detector.process - INFO -    Found 2 ROIs
+2026-04-13 11:37:48,313 - spot_detector.process - INFO -    Running spot detection for P_None_No_3
+2026-04-13 11:37:55,309 - spot_detector.process - INFO -    Found 232 spots, 116.0 spots per ROI
+2026-04-13 11:38:00,751 - spot_detector.process - INFO -    Running segmentation for P_None_No_4
+2026-04-13 11:39:09,381 - spot_detector.process - INFO -    Found 3 ROIs
+2026-04-13 11:39:09,381 - spot_detector.process - INFO -    Running spot detection for P_None_No_4
+2026-04-13 11:39:16,297 - spot_detector.process - INFO -    Found 402 spots, 134.0 spots per ROI
+2026-04-13 11:39:21,584 - spot_detector.process - INFO -    Running segmentation for P_None_No_5
+2026-04-13 11:40:29,369 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 11:40:29,369 - spot_detector.process - INFO -    Running spot detection for P_None_No_5
+2026-04-13 11:40:36,412 - spot_detector.process - INFO -    Found 313 spots, no ROIs available
+2026-04-13 11:40:41,298 - spot_detector.process - INFO -    Running segmentation for P_None_No_6
+2026-04-13 11:41:50,351 - spot_detector.process - INFO -    Found 3 ROIs
+2026-04-13 11:41:50,351 - spot_detector.process - INFO -    Running spot detection for P_None_No_6
+2026-04-13 11:41:57,279 - spot_detector.process - INFO -    Found 360 spots, 120.0 spots per ROI
+2026-04-13 11:42:02,617 - spot_detector.process - INFO -    Running segmentation for P_None_No_7
+2026-04-13 11:43:11,784 - spot_detector.process - INFO -    Found 5 ROIs
+2026-04-13 11:43:11,784 - spot_detector.process - INFO -    Running spot detection for P_None_No_7
+2026-04-13 11:43:19,174 - spot_detector.process - INFO -    Found 544 spots, 108.8 spots per ROI
+2026-04-13 11:43:24,587 - spot_detector.process - INFO -    Running segmentation for P_None_No_8
+2026-04-13 11:44:34,014 - spot_detector.process - INFO -    Found 2 ROIs
+2026-04-13 11:44:34,015 - spot_detector.process - INFO -    Running spot detection for P_None_No_8
+2026-04-13 11:44:41,967 - spot_detector.process - INFO -    Found 301 spots, 150.5 spots per ROI
+2026-04-13 11:44:47,820 - spot_detector.process - INFO -    Running segmentation for P_None_No_9
+2026-04-13 11:45:59,123 - spot_detector.process - INFO -    Found 2 ROIs
+2026-04-13 11:45:59,125 - spot_detector.process - INFO -    Running spot detection for P_None_No_9
+2026-04-13 11:46:07,753 - spot_detector.process - INFO -    Found 339 spots, 169.5 spots per ROI
+2026-04-13 11:46:15,322 - spot_detector.process - INFO -    Running segmentation for P_None_No_10
+2026-04-13 11:47:22,808 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 11:47:22,808 - spot_detector.process - INFO -    Running spot detection for P_None_No_10
+2026-04-13 11:47:30,310 - spot_detector.process - INFO -    Found 216 spots, no ROIs available
+2026-04-13 11:47:33,636 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:47:33,636 - spot_detector.process - INFO - Processing None_0.nd2
+2026-04-13 11:47:33,636 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:47:35,522 - spot_detector.process - INFO -    Running segmentation for None_0_1
+2026-04-13 11:48:41,108 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 11:48:41,108 - spot_detector.process - INFO -    Running spot detection for None_0_1
+2026-04-13 11:48:48,470 - spot_detector.process - INFO -    Found 16 spots, 16.0 spots per ROI
+2026-04-13 11:48:53,773 - spot_detector.process - INFO -    Running segmentation for None_0_2
+2026-04-13 11:49:59,220 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 11:49:59,220 - spot_detector.process - INFO -    Running spot detection for None_0_2
+2026-04-13 11:50:06,604 - spot_detector.process - INFO -    Found 17 spots, no ROIs available
+2026-04-13 11:50:11,438 - spot_detector.process - INFO -    Running segmentation for None_0_3
+2026-04-13 11:51:15,858 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 11:51:15,858 - spot_detector.process - INFO -    Running spot detection for None_0_3
+2026-04-13 11:51:22,111 - spot_detector.process - INFO -    Found 6 spots, no ROIs available
+2026-04-13 11:51:26,908 - spot_detector.process - INFO -    Running segmentation for None_0_4
+2026-04-13 11:52:30,147 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-04-13 11:52:30,147 - cellpose.dynamics - WARNING - no seeds found in get_masks_torch - no masks found.
+2026-04-13 11:52:30,186 - spot_detector.process - INFO -    Found 0 ROIs
+2026-04-13 11:52:30,186 - spot_detector.process - INFO -    Running spot detection for None_0_4
+2026-04-13 11:52:36,947 - spot_detector.process - INFO -    Found 21 spots, no ROIs available
+2026-04-13 11:52:41,662 - spot_detector.process - INFO -    Running segmentation for None_0_5
+2026-04-13 11:53:45,201 - spot_detector.process - INFO -    Found 1 ROIs
+2026-04-13 11:53:45,201 - spot_detector.process - INFO -    Running spot detection for None_0_5
+2026-04-13 11:53:51,468 - spot_detector.process - INFO -    Found 12 spots, 12.0 spots per ROI
+2026-04-13 11:53:54,990 - spot_detector.process - INFO - Processing finished! Analysed 24 ROIs total.
+2026-04-13 11:53:55,024 - spot_detector.save_data - INFO - Saved .csv to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data/nikon_cellpose_bags_spots_results.csv
+2026-04-13 11:53:55,207 - spot_detector.save_data - INFO - Saved .xlsx to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data/nikon_cellpose_bags_spots_results.xlsx
+2026-04-13 11:53:55,207 - spot_detector.save_data - INFO - Total ROIs: 24
+2026-04-13 11:53:55,208 - spot_detector.save_data - INFO - Conditions: 3
+2026-04-13 11:53:55,208 - spot_detector.save_data - INFO - Total spots: 6283
+2026-04-13 11:53:55,208 - spot_detector.save_data - INFO - Average spots per ROI: 261.8 ± 263.5
+2026-04-13 11:53:55,862 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:53:55,862 - spot_detector.process - INFO - Pipeline finished
+2026-04-13 11:53:55,862 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:53:55,863 - __main__ - INFO - ============================================================
+2026-04-13 11:53:55,863 - __main__ - INFO - Pipeline completed successfully!
+2026-04-13 11:53:55,863 - __main__ - INFO - Analyzed 24 ROIs
+2026-04-13 11:53:55,863 - __main__ - INFO - Results saved to: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
+2026-04-13 11:53:55,863 - __main__ - INFO - ============================================================
+2026-04-13 11:58:47,909 - __main__ - INFO - ============================================================
+2026-04-13 11:58:47,909 - __main__ - INFO - Spot Detection Pipeline
+2026-04-13 11:58:47,909 - __main__ - INFO - ============================================================
+2026-04-13 11:58:47,909 - __main__ - INFO - Experiment folder: /home/michalv/Analysis/nikon_cellpose_bags_spots
+2026-04-13 11:58:47,909 - __main__ - INFO - Config file: /home/michalv/Analysis/nikon_cellpose_bags_spots/scripts/spot_detection_pipeline/config.yml
+2026-04-13 11:58:47,909 - __main__ - INFO - Loading configuration...
+2026-04-13 11:58:47,913 - spot_detector.config - INFO - Experiment: nikon_cellpose_bags_spots
+2026-04-13 11:58:47,913 - __main__ - INFO - Configuration loaded successfully
+2026-04-13 11:58:47,913 - __main__ - INFO - Raw data: /home/michalv/Analysis/nikon_cellpose_bags_spots/raw_data
+2026-04-13 11:58:47,913 - __main__ - INFO - Output: /home/michalv/Analysis/nikon_cellpose_bags_spots/processed_data
+2026-04-13 11:58:47,913 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:58:47,913 - spot_detector.process - INFO - Starting pipeline processing
+2026-04-13 11:58:47,913 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:58:47,913 - spot_detector.process - INFO - Found 3 .ND2 files.
+2026-04-13 11:58:47,913 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:58:47,913 - spot_detector.process - INFO - Processing allON_HP.nd2
+2026-04-13 11:58:47,913 - spot_detector.process - INFO - ============================================================
+2026-04-13 11:58:49,790 - spot_detector.process - INFO -    Running segmentation for allON_HP_1

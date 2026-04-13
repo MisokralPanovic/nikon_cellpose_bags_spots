@@ -1,8 +1,5 @@
-- test what conda does if constructing the same env again
-    - add if exist statement
-- compare old and new enviroment.yml
-- paralelise if possible
-- skip field and continue to another if there is an error
-- nextflow
 - cluster compatible with load module
-- bash for data manipulation, github cloning etc
+- bash for data manipulation, github cloning etc (rsync?)
+- nextflow
+
+

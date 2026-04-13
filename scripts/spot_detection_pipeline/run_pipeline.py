@@ -30,7 +30,7 @@ def setup_logging(log_file: Path | None = None, verbose: bool = False) -> None:
         log_file (Path, optional): Optional path to log file. If provided, logs are written to both console and file. Defaults to None.
         verbose (bool): If True, show DEBUG level and library logs
     """
-    handlers = [logging.StreamHandler()]
+    handlers = []
     
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(
