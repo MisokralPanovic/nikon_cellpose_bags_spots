@@ -3,3 +3,25 @@
 - nextflow
 
 
+---
+1. clone repo
+2. copy raw data
+- from dropbox
+- from pi_data (more likely)
+3. rename repo (according to raw data)
+- add version if it was done before (or do this for final copy)
+4. user adjusts config
+***cluster snakemake
+5. conda env
+- check if exist and is identical
+6. run pipeline
+7. remove raw
+- but write what it was (e.g. tree)
+8. copy/send data
+***
+---
+
+additional need:
+-- script from usb to dropbox | pi/data
+- those two should be synced
+-- script for initial repo get

@@ -3,7 +3,7 @@ paths:
   raw_data: "raw_data"
   figures: "figures"
   processed_data: "processed_data"
-  cellpose_models: "../_pipeline_assets/cellpose_models"
+  cellpose_models: "../raw_data/microscopy/segmentation_models"
 
 # channels
 channels:
