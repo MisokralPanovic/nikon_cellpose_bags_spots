@@ -8,8 +8,8 @@ Supports ND2 and CZI file formats with Cellpose segmentation and Spotiflow detec
 __version__ = "0.1.0"
 __author__ = "Michal Varga"
 
-from spot_detector.process import run_pipeline
-from spot_detector.config import load_config, setup_paths
+from process import run_pipeline
+from config import load_config, setup_paths
 
 __all__ = [
     "run_pipeline",

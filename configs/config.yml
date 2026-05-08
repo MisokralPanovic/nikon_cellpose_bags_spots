@@ -1,8 +1,8 @@
 # paths
 paths:
-  raw_data: "raw_data"
-  figures: "figures"
-  processed_data: "processed_data"
+  raw_data: "data"
+  figures: "output/figures"
+  processed_data: "output"
   cellpose_models: "../raw_data/microscopy/segmentation_models"
 
 # channels

@@ -14,8 +14,8 @@ package_dir = Path(__file__).parent.parent
 if str(package_dir) not in sys.path:
     sys.path.insert(0, str(package_dir))
 
-from spot_detector.config import load_config, setup_paths
-from spot_detector.process import run_pipeline
+from config import load_config, setup_paths
+from process import run_pipeline
 
 def setup_logging(verbose: bool = False, log_file: Optional[Path] = None) -> None:
     """Configure logging.
@@ -121,12 +121,12 @@ def main():
         config_path = args.config
     else:
         # Default to config.yml in package directory
-        config_path = Path(__file__).parent.parent / 'config.yml'
+        config_path = Path(__file__).parent / 'configs' / 'config.yml'
 
     if args.log_file:
         log_file = args.log_file
     else:
-        log_file = experiment_folder / 'processed_data' / 'pipeline.log'
+        log_file = experiment_folder / 'output' / 'pipeline.log'
 
     # Setup logging
     setup_logging(verbose=args.verbose, log_file=log_file)

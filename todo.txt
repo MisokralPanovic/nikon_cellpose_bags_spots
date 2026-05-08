@@ -25,3 +25,23 @@ additional need:
 -- script from usb to dropbox | pi/data
 - those two should be synced
 -- script for initial repo get
+
+
+
+big different:
+- cellpose in 3D
+- newer versions of all
+- bash files to be included in python
+
+
+
+- use bioio from inputs
+- redo env to use less packages and most via conda
+- train spotiflow on 3d with napari
+    - make and label images
+    - train and evaluate
+    - evaluate on 2d
+- cellpose stitch_treshold ~0.4 on 4x downsampeled images with new models
+- stack - min zproject
+- make it for 3d (flattened and normal) and 2d 
+- rewrite the code

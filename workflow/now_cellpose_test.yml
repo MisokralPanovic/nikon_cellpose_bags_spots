@@ -1,0 +1,33 @@
+name: now_cellpose_test
+channels:
+  - pytorch
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  - python
+  - spotiflow
+  - cellpose
+  - pytorch
+  - torchvision
+  - nd2
+  - aicspylibczi
+  - aicsimageio
+  - matplotlib
+  - matplotlib-scalebar
+  - seaborn
+  - pyyaml
+  - tqdm
+  - openpyxl    
+  - jupyterlab
+  - ipykernel
+  - ipywidgets
+  - numpy
+  - pandas
+  - scipy
+  - scikit-image
+  - opencv
+  - xarray
+  - dask
+  - pip

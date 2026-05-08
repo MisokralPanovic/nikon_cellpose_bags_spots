@@ -173,5 +173,4 @@ def process_field_of_view_czi(
     del seg_info
     del spots_info
     
-    return seg_image, spots_image
-                
+    return seg_image, spots_image  

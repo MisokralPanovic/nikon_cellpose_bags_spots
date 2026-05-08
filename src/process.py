@@ -12,22 +12,22 @@ import numpy as np
 import xarray as xr
 from tqdm import tqdm
 
-from spot_detector.config import (
+from config import (
     get_analysis_params, get_footprint, get_qc_params,
     get_channel_params, get_detection_params, get_segmentation_params
 )
-from spot_detector.io_utils import (
+from io_utils import (
     find_raw_files, extract_data_nd2, process_field_of_view_nd2,
     czi_group_conditions, extract_pixelSize_czi, process_field_of_view_czi
 )
-from spot_detector.preprocess import process_field_of_view
-from spot_detector.segmentation import memory_efficient_segmentation
-from spot_detector.detection import (
+from preprocess import process_field_of_view
+from segmentation import memory_efficient_segmentation
+from detection import (
     spot_tophat_correction, detect_spots_spotiflow, analyze_rois_memory_efficient
 )
-from spot_detector.qc import create_qc_figure
-from spot_detector.save_data import save_results
-from spot_detector.summary_figures import create_summary_figures
+from qc import create_qc_figure
+from save_data import save_results
+from summary_figures import create_summary_figures
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ channels:
 
 dependencies:
   # Python version
-  - python=3.11
+  - python=3.12
 
   # Core scientific computing
   - numpy>=1.24.0
@@ -52,7 +52,7 @@ dependencies:
       
       # Deep learning models
       - cellpose>=3.0.0
-      - spotiflow>=0.3.0
+      - spotiflow>=0.6.4
       
       # Visualization extras
       - matplotlib-scalebar>=0.8.0
