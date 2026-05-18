@@ -9,6 +9,25 @@ from aicsimageio.aics_image import AICSImage
 
 # todo error handling
 
+from bioio import BioImage
+from pathlib import Path
+
+
+def find_raw_files(
+    raw_data_folder: Path
+    ) -> tuple[list[Path], list[Path]]:
+    '''Finds .nd2 and .czi files in a given folder and outputs a list of the files for each file type.
+    
+    Args:
+        raw_data_folder (Path): Path for .nd2 and .czi files.
+        
+    Raises:
+        FileNotFoundError: If no .nd2 or .czi files are found.
+    
+    Returns:
+        tuple[list[Path], ...]: Tuple of lists of image file paths, and .czi file paths.
+    '''
+
 # %% getting files - common
 def find_raw_files(
     raw_data_folder: Path
@@ -174,3 +193,5 @@ def process_field_of_view_czi(
     del spots_info
     
     return seg_image, spots_image  
+
+

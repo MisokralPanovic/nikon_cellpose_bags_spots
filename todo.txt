@@ -45,3 +45,24 @@ big different:
 - stack - min zproject
 - make it for 3d (flattened and normal) and 2d 
 - rewrite the code
+
+
+
+Rewrite:
+input
+    bioio
+    based on ending chose bioio version to use
+    all standard format for data and metadata
+preprocessing
+    for bags img - zmin
+    for spots maybe the same (only for figures)
+    normalise intensisties (i think similar to what I have now)
+segmentation
+    2d or 3d as parameter
+    4x downsample as default
+        only a small code change
+detection
+    2d or 3d spotiflow
+    prob_tresh as parameter
+    figure out 3d assigment of spots to masks
+    calculate roi volume etc
