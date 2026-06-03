@@ -22,7 +22,7 @@ from io_utils import (
 )
 from preprocess import process_field_of_view
 from segmentation import memory_efficient_segmentation
-from detection import (
+from src.segmentation_detection import (
     spot_tophat_correction, detect_spots_spotiflow, analyze_rois_memory_efficient
 )
 from qc import create_qc_figure

@@ -1,0 +1,8 @@
+Condition,Source_File,Scene,FOV_ID,Object_Label,Spot_Count,Volume_um3,Area_um2,Z_Span_um,Thickness_mask_um,Thickness_BF_um
+allON_HP,allON_HP.nd2,0,allON_HP_S00,1,955,,13429.1874,,,
+allON_HP,allON_HP.nd2,1,allON_HP_S01,1,1094,,18404.4946,,,
+allON_HP,allON_HP.nd2,1,allON_HP_S01,2,1070,,17692.0246,,,
+allON_HP,allON_HP.nd2,2,allON_HP_S02,1,1164,,24078.5174,,,
+allON_HP,allON_HP.nd2,3,allON_HP_S03,1,1116,,23756.6946,,,
+allON_HP,allON_HP.nd2,4,allON_HP_S04,1,1127,,20976.0035,,,
+allON_HP,allON_HP.nd2,5,allON_HP_S05,1,1103,,30195.2876,,,

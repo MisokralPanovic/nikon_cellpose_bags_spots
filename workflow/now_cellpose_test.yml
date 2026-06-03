@@ -1,33 +1,44 @@
-name: now_cellpose_test
+name: bioio_cellpose_spotiflow
 channels:
   - pytorch
+  - nvidia
   - conda-forge
   - bioconda
   - defaults
 
 dependencies:
-  - python
-  - spotiflow
-  - cellpose
+  # ---- Core Python ----
+  - python=3.11
+
+  # ---- GPU PyTorch stack ----
   - pytorch
   - torchvision
-  - nd2
-  - aicspylibczi
-  - aicsimageio
+  - pytorch-cuda=12.1
+
+  # ---- Imaging + DL ----
+  - cellpose
+  - spotiflow
+  - napari
+
+  # ---- Viz + utilities ----
   - matplotlib
   - matplotlib-scalebar
   - seaborn
   - pyyaml
   - tqdm
-  - openpyxl    
+  - openpyxl
   - jupyterlab
   - ipykernel
   - ipywidgets
   - numpy
   - pandas
-  - scipy
-  - scikit-image
-  - opencv
-  - xarray
-  - dask
+
+  # ---- Pip section ----
   - pip
+  - pip:
+      - bioio
+      - bioio-czi
+      - bioio-lif
+      - bioio-nd2
+      - bioio-ome-tiff
+      - bioio-tifffile

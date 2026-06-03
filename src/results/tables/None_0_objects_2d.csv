@@ -1,0 +1,6 @@
+Condition,Source_File,Scene,FOV_ID,Object_Label,Spot_Count,Volume_um3,Area_um2,Z_Span_um,Thickness_mask_um,Thickness_BF_um
+None_0,None_0.nd2,0,None_0_S00,1,26,,13985.409,,,
+None_0,None_0.nd2,1,None_0_S01,1,32,,46573.8144,,,
+None_0,None_0.nd2,2,None_0_S02,1,17,,55236.8248,,,
+None_0,None_0.nd2,3,None_0_S03,1,14,,53117.5977,,,
+None_0,None_0.nd2,4,None_0_S04,1,0,,1.9798,,,
