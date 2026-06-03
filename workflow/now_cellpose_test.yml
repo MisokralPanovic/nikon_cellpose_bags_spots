@@ -1,10 +1,8 @@
 name: bioio_cellpose_spotiflow
 channels:
   - pytorch
-  - nvidia
   - conda-forge
   - bioconda
-  - defaults
 
 dependencies:
   # ---- Core Python ----
@@ -12,8 +10,6 @@ dependencies:
 
   # ---- GPU PyTorch stack ----
   - pytorch
-  - torchvision
-  - pytorch-cuda=12.1
 
   # ---- Imaging + DL ----
   - cellpose

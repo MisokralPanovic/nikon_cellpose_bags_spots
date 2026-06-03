@@ -49,7 +49,7 @@ def measure_objects(
         "label", "area", "bbox", "centroid",
         "equivalent_diameter_area",
     ]
-    props_2d = props_3d + ["eccentricity"]  # only available in 2D
+    props_2d = props_3d + ["eccentricity"]
 
     raw = pd.DataFrame(
         regionprops_table(masks, properties=props_3d if mode == "3d" else props_2d)
@@ -73,19 +73,19 @@ def measure_objects(
         df["Spot_Density_per_um2"]  = np.nan
         df["Z_Span_um"] = ((raw["bbox-3"] - raw["bbox-0"]) * dz).round(4)
         df["Centroid_Z_um"] = (raw["centroid-0"] * dz).round(4)
-        df["Centroid_Y_um"] = (raw["centroid-1"] * dx).round(4)  
-        df["Centroid_X_um"] = (raw["centroid-2"] * dx).round(4)  
+        df["Centroid_Y_um"] = (raw["centroid-1"] * dx).round(4)
+        df["Centroid_X_um"] = (raw["centroid-2"] * dx).round(4)
         df["Equivalent_Diameter_um"] = (raw["equivalent_diameter_area"] * dx).round(4)
 
     else:
         df["Volume_um3"] = np.nan
         df["Area_um2"] = (raw["area"] * dx * dx).round(4)
         df["Spot_Density_per_um3"]  = np.nan
-        df["Spot_Density_per_um2"]  = df["Spot_Count"] / df["Area_um2"]          
+        df["Spot_Density_per_um2"]  = df["Spot_Count"] / df["Area_um2"]
         df["Z_Span_um"] = np.nan
         df["Centroid_Z_um"] = np.nan
-        df["Centroid_Y_um"] = (raw["centroid-0"] * dx).round(4)  
-        df["Centroid_X_um"] = (raw["centroid-1"] * dx).round(4)  
+        df["Centroid_Y_um"] = (raw["centroid-0"] * dx).round(4)
+        df["Centroid_X_um"] = (raw["centroid-1"] * dx).round(4)
         df["Equivalent_Diameter_um"] = (raw["equivalent_diameter_area"] * dx).round(4)
-        
+
     return df
