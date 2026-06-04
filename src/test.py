@@ -29,6 +29,7 @@ import re
 # import numpy as np
 # import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import seaborn as sns
 from scipy.spatial import KDTree
 from scipy.stats import gaussian_kde
@@ -501,9 +502,9 @@ def make_qc_figure(
     # Panel E - Spotiflow probability score ECDF (inside vs background)
     ax_e = axes_flat[4]
     if not has_spots:
-        ax_d.text(0.5, 0.5, "No Spots Detected",
+        ax_e.text(0.5, 0.5, "No Spots Detected",
                 ha="center", va="center", coor="gray")
-        ax_d.axis("off")
+        ax_e.axis("off")
     else:
         prob_arr = np.array(flow_details.prob)
         inside = spot_labels > 0
