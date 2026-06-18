@@ -82,6 +82,7 @@ def detect_spots_spotiflow(
     model_spotiflow: Spotiflow,
     prob_thresh: float,
     min_distance: int,
+    do_3d: bool
     ) -> Tuple[np.ndarray, SimpleNamespace]:
     """Detect spot-like features in an image using the default Spotiflow model.
 
@@ -94,8 +95,16 @@ def detect_spots_spotiflow(
             - points (np.ndarray): Array of detected spot coordinates.
             - details (SimpleNamespace): List of metadata dictionaries for each spot, including confidence scores and other attributes.
     """
+    if do_3d:
+        input_img = spot_stack.astype(np.float32)
+    else:
+        if spot_stack.ndim == 3 and spot_stack.shape[0] > 1:
+            input_img = spot_stack.max(axis=0).astype(np.float32)
+        else:
+            input_img = np.squeeze(spot_stack).astype(np.float32)
+
     points, details = model_spotiflow.predict(
-        img=spot_stack,
+        img=input_img,
         verbose=False,
         prob_thresh=prob_thresh,
         min_distance=min_distance

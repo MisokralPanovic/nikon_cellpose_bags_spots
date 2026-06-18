@@ -56,7 +56,7 @@ def measure_objects(
     )
 
     # --- build output ---
-    df = pd.DataFrame()
+    df = pd.DataFrame({"Object_Label": raw["label"]})
 
     # metadata
     df["Experiment"] = experiment

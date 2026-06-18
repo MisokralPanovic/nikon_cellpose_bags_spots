@@ -1,0 +1,8 @@
+Object_Label,Experiment,Source File,Condition,Scene,Spot_Count,Volume_um3,Area_um2,Spot_Density_per_um3,Spot_Density_per_um2,Z_Span_um,Centroid_Z_um,Centroid_Y_um,Centroid_X_um,Equivalent_Diameter_um
+1,nikon_cellpose_bags_spots,allON_HP.nd2,allON_HP,0,999,352062.6254,,0.0028375633422178075,,27.9,13.4086,212.8987,225.5039,55.454
+1,nikon_cellpose_bags_spots,allON_HP.nd2,allON_HP,1,1127,486154.9979,,0.0023181907105104347,,27.9,13.3449,117.9361,142.4935,61.752
+2,nikon_cellpose_bags_spots,allON_HP.nd2,allON_HP,1,1128,477464.9371,,0.002362477141989072,,27.9,13.3114,266.7415,228.4855,61.3819
+1,nikon_cellpose_bags_spots,allON_HP.nd2,allON_HP,2,1189,659442.298,,0.001803038724701278,,27.9,13.4232,201.5635,185.7924,68.3573
+1,nikon_cellpose_bags_spots,allON_HP.nd2,allON_HP,3,1163,653218.2849,,0.001780415562277228,,27.9,13.4407,226.2203,195.8674,68.1416
+1,nikon_cellpose_bags_spots,allON_HP.nd2,allON_HP,4,1167,572120.0535,,0.0020397816732008675,,27.9,13.3282,224.3049,159.2582,65.1961
+1,nikon_cellpose_bags_spots,allON_HP.nd2,allON_HP,5,1174,830521.634,,0.0014135694386980895,,27.9,13.4248,237.0002,172.7465,73.8204

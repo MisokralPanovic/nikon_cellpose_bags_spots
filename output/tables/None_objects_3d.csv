@@ -1,0 +1,6 @@
+Object_Label,Experiment,Source File,Condition,Scene,Spot_Count,Volume_um3,Area_um2,Spot_Density_per_um3,Spot_Density_per_um2,Z_Span_um,Centroid_Z_um,Centroid_Y_um,Centroid_X_um,Equivalent_Diameter_um
+1,nikon_cellpose_bags_spots,None_0.nd2,None,0,12,370898.9681,,3.235382417339219e-05,,26.1,12.6351,185.0132,221.4878,56.4258
+1,nikon_cellpose_bags_spots,None_0.nd2,None,1,18,1222593.2004,,1.4722803949924537e-05,,26.1,12.6325,253.7763,208.889,83.9757
+1,nikon_cellpose_bags_spots,None_0.nd2,None,2,3,1452569.5868,,2.065305529774293e-06,,26.1,12.6172,213.0677,188.3205,88.9416
+1,nikon_cellpose_bags_spots,None_0.nd2,None,3,10,1397594.0548,,7.15515350516501e-06,,26.1,12.6303,252.0495,202.6882,87.8051
+1,nikon_cellpose_bags_spots,None_0.nd2,None,4,8,1296494.3539,,6.170485799598822e-06,,26.1,12.6173,219.7198,172.8981,85.6347
