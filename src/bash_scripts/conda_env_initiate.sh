@@ -42,4 +42,4 @@ fi
 
 # --- Activate ENV ---
 source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate "$ENV_NAME$
+conda activate "$ENV_NAME"
