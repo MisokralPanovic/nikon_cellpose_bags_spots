@@ -1,2 +1,16 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+*.pyc
+.pytest_cache/
+
+# Virtual environments
+.venv
+
+# images/data
 *.nd2
 *.png

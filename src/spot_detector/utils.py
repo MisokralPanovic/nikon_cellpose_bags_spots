@@ -11,7 +11,7 @@ def parse_condition_from_name(filename_stem: str) -> str:
         'Treated-DrugA_FOV3' -> 'Treated-DrugA'
         'WT_high_res'        -> 'WT_high_res'
     """
-    return re.split(r'[-_]\d+$', filename_stem)[0]
+    return re.sub(r'[-_][^-_]*?\d+$', '', filename_stem)
 
 @dataclass
 class ModelBundle:

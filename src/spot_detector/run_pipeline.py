@@ -4,11 +4,11 @@ import pandas as pd
 from pathlib import Path
 
 # import from files
-from config import load_config
-from utils import parse_condition_from_name, ModelBundle
-from segmentation_detection import segment_2d, segment_3d, detect_spots_spotiflow, assign_spots_to_mask
-from obejct_measurement import measure_objects
-from qc_figures import make_run_summary_figure, make_scene_summary_figure, make_qc_figure
+from spot_detector.config import load_config
+from spot_detector.utils import parse_condition_from_name, ModelBundle
+from spot_detector.segmentation_detection import segment_2d, segment_3d, detect_spots_spotiflow, assign_spots_to_mask
+from spot_detector.obejct_measurement import measure_objects
+from spot_detector.qc_figures import make_run_summary_figure, make_scene_summary_figure, make_qc_figure
 
 def run_pipeline(config_path: Path) -> None:
     """_summary_

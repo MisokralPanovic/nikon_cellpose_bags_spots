@@ -1,0 +1,40 @@
+name: bioio_cellpose_spotiflow
+channels:
+  - pytorch
+  - conda-forge
+  - bioconda
+
+dependencies:
+  # ---- Core Python ----
+  - python=3.11
+
+  # ---- GPU PyTorch stack ----
+  - pytorch
+
+  # ---- Imaging + DL ----
+  - cellpose
+  - spotiflow
+  - napari
+
+  # ---- Viz + utilities ----
+  - matplotlib
+  - matplotlib-scalebar
+  - seaborn
+  - pyyaml
+  - tqdm
+  - openpyxl
+  - jupyterlab
+  - ipykernel
+  - ipywidgets
+  - numpy
+  - pandas
+
+  # ---- Pip section ----
+  - pip
+  - pip:
+      - bioio
+      - bioio-czi
+      - bioio-lif
+      - bioio-nd2
+      - bioio-ome-tiff
+      - bioio-tifffile
