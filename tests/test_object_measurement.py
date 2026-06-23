@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import pytest
-from skimage.measure import regionprops_table
 from spot_detector.obejct_measurement import measure_objects
 
 # =====================================================================
