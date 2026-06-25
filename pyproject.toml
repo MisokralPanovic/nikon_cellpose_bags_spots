@@ -16,3 +16,6 @@ testpaths = ["tests"]
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-mock"]
+
+[project.scripts]
+spot-detector = "spot_detector.cli:main"

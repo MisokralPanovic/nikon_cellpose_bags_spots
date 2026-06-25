@@ -1,7 +1,6 @@
 from skimage.measure import regionprops_table
 import pandas as pd
 import numpy as np
-from pathlib import Path
 
 # =====================================================================
 # ROI Properties Calculation
@@ -14,7 +13,7 @@ def measure_objects(
     dz: float,
     mode: str,
     condition: str,
-    filepath: Path,
+    filepath: str,
     experiment: str,
     scene: int,
 ) -> pd.DataFrame:
@@ -27,7 +26,8 @@ def measure_objects(
         dz (float): Pixel size in Z in micrometers. Ignored in 2D mode.
         mode (str): Dimensionality of the mask, either '2d' or '3d'.
         condition (str): Experimental condition label, added as metadata column.
-        source_file (str): Source file name, added as metadata column.
+        filepath (str): Source file name, added as metadata column.
+        experiment (str): Experiment name extracted from parent folder.
         scene (int): Scene index within the source file, added as metadata column.
 
     Returns:
@@ -61,7 +61,7 @@ def measure_objects(
 
     # metadata
     df["Experiment"] = experiment
-    df["Source File"] = filepath.name
+    df["Source_File"] = filepath
     df["Condition"] = condition
     df["Scene"] = scene
     df["Object_Label"] = raw["label"]
@@ -88,5 +88,6 @@ def measure_objects(
         df["Centroid_Y_um"] = (raw["centroid-0"] * dx).round(4)
         df["Centroid_X_um"] = (raw["centroid-1"] * dx).round(4)
         df["Equivalent_Diameter_um"] = (raw["equivalent_diameter_area"] * dx).round(4)
+        df["Eccentricity"] = raw["eccentricity"]
 
     return df

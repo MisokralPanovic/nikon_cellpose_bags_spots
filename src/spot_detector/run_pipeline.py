@@ -23,6 +23,7 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
     
     # establish folder structure
     data_folder = Path(config["paths"]["raw_data_dir"])
+    experiment = data_folder.parent.name
     out_dir = Path(config["paths"]["out_dir"])
     fig_dir = out_dir / "figures"
     tab_dir = out_dir / "tables"
@@ -30,7 +31,6 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
     tab_dir.mkdir(parents=True, exist_ok=True)
     
     models = ModelBundle.load(config=config, do_3d=do_3d)
-    experiment = data_folder.parent.name
     
     all_run_records = []
     file_list = [p for p in data_folder.iterdir() if p.is_file()]
@@ -39,8 +39,7 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
         scene_df = _process_file(
             filepath=filepath, config=config, models=models,
             mode=mode, do_3d=do_3d, experiment= experiment,
-            fig_dir=fig_dir, tab_dir=tab_dir, 
-            all_run_records= all_run_records
+            fig_dir=fig_dir, tab_dir=tab_dir
         )
         if scene_df is not None:
             all_run_records.append(scene_df)
@@ -67,7 +66,6 @@ def _process_file(
     do_3d: bool,
     experiment: str,
     fig_dir: Path,
-    all_run_records: list,
     tab_dir: Path,
 ) -> pd.DataFrame | None:
     """Process a single multi-scene image file. Returns combined scene DataFrame or None."""
@@ -85,13 +83,13 @@ def _process_file(
         if scene_df is not None:
             all_scene_records.append(scene_df)
             
-        if not all_run_records:
-            return None
+    if not all_scene_records:
+        return None
     
     combined_df = pd.concat(all_scene_records, ignore_index=True)
     combined_df.to_csv(tab_dir / f"{condition}_objects_{mode}.csv", index=False)
     make_scene_summary_figure(
-        df = combined_df, experiment = experiment, mode = mode, 
+        df = combined_df, condition=condition, mode = mode, 
         out_path = fig_dir / f"{condition}_summary_{mode}.png"
         )
     return combined_df
@@ -140,7 +138,7 @@ def _process_scene(
     scene_df = measure_objects(
         masks=masks, spot_labels=spot_labels,
         dx=dx, dz=dz, mode=mode,
-        condition=condition, filepath=filepath,
+        condition=condition, filepath=filepath.name,
         experiment=experiment, scene=scene,
     )
     

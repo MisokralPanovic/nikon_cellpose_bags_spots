@@ -1,11 +1,11 @@
 mode:
-  "do_3d": true
+  "do_3d": false
 
 # paths
 paths:
   raw_data_dir: "data"
   out_dir: "output"
-  cellpose_models_path: "../_pipeline_assets/cellpose_models/cpsam_pseudo3d_4x_2026050"
+  cellpose_models_path: "../_pipeline_assets/cellpose_models/cpsam_pseudo3d_4x_20260506"
   spotiflow_models_path: "../_pipeline_assets/bag_spot_model"
 
 # channels

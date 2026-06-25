@@ -14,7 +14,7 @@ def base_params():
         "dz": 2.0,
         "mode": "2d",
         "condition": "Control",
-        "source_file": "test.nd2",
+        "filepath": "test.nd2",
         "experiment": "exp1",
         "scene": 0        
     }
@@ -86,7 +86,7 @@ class TestMeasureObjects2D:
 
     def test_metadata_columns(self, one_object_2d, base_params):
         params = {**base_params, 
-                "condition": "Control", "source_file": "test.nd2", 
+                "condition": "Control", "filepath": "test.nd2", 
                 "experiment": "exp1", "scene": 0}
         df = measure_objects(
         masks=one_object_2d,
@@ -94,7 +94,7 @@ class TestMeasureObjects2D:
         **params
         )
         assert df["Condition"].iloc[0] == "Control"
-        assert df["Source File"].iloc[0] == "test.nd2"
+        assert df["Source_File"].iloc[0] == "test.nd2"
         assert df["Experiment"].iloc[0] == "exp1"
         assert df["Scene"].iloc[0] == 0
 
