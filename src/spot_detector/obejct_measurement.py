@@ -1,6 +1,7 @@
 from skimage.measure import regionprops_table
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
 # =====================================================================
 # ROI Properties Calculation
@@ -13,7 +14,7 @@ def measure_objects(
     dz: float,
     mode: str,
     condition: str,
-    source_file: str,
+    filepath: Path,
     experiment: str,
     scene: int,
 ) -> pd.DataFrame:
@@ -60,7 +61,7 @@ def measure_objects(
 
     # metadata
     df["Experiment"] = experiment
-    df["Source File"] = source_file
+    df["Source File"] = filepath.name
     df["Condition"] = condition
     df["Scene"] = scene
     df["Object_Label"] = raw["label"]
