@@ -2,6 +2,7 @@ from bioio import BioImage
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from tqdm.auto import tqdm
 
 from spot_detector.utils import parse_condition_from_name, ModelBundle
 from spot_detector.segmentation_detection import segment_2d, segment_3d, detect_spots_spotiflow, assign_spots_to_mask
@@ -30,6 +31,9 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
     fig_dir.mkdir(parents=True, exist_ok=True)
     tab_dir.mkdir(parents=True, exist_ok=True)
     
+    print(f"=== Pipeline starting | mode={mode.upper()} ===")
+    print(f"Data folder: {data_folder}")
+    
     models = ModelBundle.load(config=config, do_3d=do_3d)
     
     all_run_records = []
@@ -50,6 +54,7 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
     run_df = pd.concat(all_run_records, ignore_index=True)
     run_csv_path = tab_dir / f"_run_objects_{mode}.csv"
     run_df.to_csv(run_csv_path, index=False)
+    print(f"\nSaved run CSV: {run_csv_path.name}  ({len(run_df)} rows, {run_df['Condition'].nunique()} condition(s))")
     
     make_run_summary_figure(
         df=run_df, experiment=experiment, mode=mode,
@@ -73,8 +78,15 @@ def _process_file(
     img = BioImage(filepath)
     all_scene_records = []
     
-    for scene in range(len(img.scenes)):
+    print(f"\n--- Processing: {filepath.name} ---")
+    
+    num_scenes = len(img.scenes)
+    print(f"  Scenes: {num_scenes}")
+    
+    for scene in tqdm(range(num_scenes)):
         img.set_scene(scene)
+        print(f"  Scene {scene:02d} / {num_scenes - 1}")
+        
         scene_df = _process_scene(
             img=img, scene=scene, filepath=filepath, condition=condition,
             config=config, models=models, mode=mode, do_3d=do_3d,
@@ -87,7 +99,11 @@ def _process_file(
         return None
     
     combined_df = pd.concat(all_scene_records, ignore_index=True)
-    combined_df.to_csv(tab_dir / f"{condition}_objects_{mode}.csv", index=False)
+    
+    csv_path = tab_dir / f"{condition}_objects_{mode}.csv"
+    combined_df.to_csv(csv_path, index=False)
+    print(f"  Saved CSV: {csv_path.name}  ({len(combined_df)} rows)")
+    
     make_scene_summary_figure(
         df = combined_df, condition=condition, mode = mode, 
         out_path = fig_dir / f"{condition}_summary_{mode}.png"
@@ -114,6 +130,7 @@ def _process_scene(
     dx = img.physical_pixel_sizes.X or 1.0
     dz = img.physical_pixel_sizes.Z or 1.0
     
+    print(f"    Segmenting ({mode})...")
     if do_3d:
         masks = segment_3d(
             bf_stack=objects_stack, 
@@ -126,6 +143,10 @@ def _process_scene(
             model_cellpose=models.cellpose, 
             factor=config["segmentation"]["bin_factor"])
     
+    n_obj = len(np.unique(masks)) -1
+    print(f"    Found {n_obj} object(s) after border clearing")
+    
+    print(f"    Detecting spots ({mode})...")
     points, details = detect_spots_spotiflow(
         spot_stack=spots_stack,
         model_spotiflow=models.spotiflow,
@@ -134,6 +155,8 @@ def _process_scene(
         do_3d=do_3d
     )
     spot_labels = assign_spots_to_mask(coordinates=points, masks=masks)
+    print(f"    Detected {len(points)} spot(s), {(spot_labels > 0).sum()} assigned")
+    
     
     scene_df = measure_objects(
         masks=masks, spot_labels=spot_labels,
