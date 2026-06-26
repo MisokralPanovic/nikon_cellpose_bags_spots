@@ -26,7 +26,7 @@ def mock_img_2d(mocker: MockerFixture):
     img.dims.order = "CYX"
     img.get_image_data.return_value = np.random.rand(20, 20).astype(np.float32)
     img.physical_pixel_sizes.X = 0.5
-    img.physical_pixel_sizes.X = 1.0
+    img.physical_pixel_sizes.Z = 1.0
     return img
     
 @pytest.fixture
