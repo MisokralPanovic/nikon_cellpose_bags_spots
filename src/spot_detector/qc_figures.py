@@ -111,9 +111,9 @@ def _panel_segemntation(ax: Axes, images: ImageData, dx: float) -> None:
         images (ImageData): ImageData object with processed segmentation image and 2d masks.
     """
     ax.imshow(images.seg_inv_norm, cmap="gray")
-    if images.masks_2d is not None:
+    if images.masks_2d is not None and images.masks_2d.max() > 0:
         mask_overlay = np.ma.masked_where(images.masks_2d == 0, images.masks_2d)
-        ax.imshow(mask_overlay, alpha = 0.3, cmap='tab10', vmin=1)
+        ax.imshow(mask_overlay, alpha = 0.3, cmap='tab10', vmin=1, vmax=max(images.masks_2d.max(), 1))
         
     scalebar = ScaleBar(
         dx, units="um",
