@@ -8,9 +8,6 @@ tqdm
 # ---- Deep Learning & Segmentation ----
 cellpose
 spotiflow
-torch
-torchvision
-torchaudio
 
 # ---- Viz, UI, and Napari ----
 matplotlib
