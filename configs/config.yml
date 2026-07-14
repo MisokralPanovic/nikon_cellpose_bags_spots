@@ -1,5 +1,5 @@
 mode:
-  "do_3d": false
+  "do_3d": true
 
 # paths
 paths:

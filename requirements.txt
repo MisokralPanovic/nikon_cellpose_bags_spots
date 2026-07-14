@@ -1,0 +1,32 @@
+# ---- Core Python & Scientific Stack ----
+numpy
+pandas
+openpyxl
+pyyaml
+tqdm
+
+# ---- Deep Learning & Segmentation ----
+cellpose
+spotiflow
+torch
+torchvision
+torchaudio
+
+# ---- Viz, UI, and Napari ----
+matplotlib
+matplotlib-scalebar
+seaborn
+napari[all]
+
+# ---- Jupyter / Notebook Tools ----
+jupyterlab
+ipykernel
+ipywidgets
+
+# ---- BioIO Readers ----
+bioio
+bioio-czi
+bioio-lif
+bioio-nd2
+bioio-ome-tiff
+bioio-tifffile

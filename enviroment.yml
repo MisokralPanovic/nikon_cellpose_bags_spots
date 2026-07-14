@@ -1,37 +1,52 @@
 name: bioio_cellpose_spotiflow
 channels:
-  - pytorch
   - conda-forge
   - bioconda
 
 dependencies:
   # ---- Core Python ----
   - python=3.11
+  - numpy<2
+  - pandas
+  - openpyxl
+  - pyyaml
+  - tqdm
 
-  # ---- GPU PyTorch stack ----
-  - pytorch
+  # ---- Dask ----
+  - dask>=2024.4.1
+  - dask-image
 
-  # ---- Imaging + DL ----
+  # ---- Deep Learning ----
   - cellpose
   - spotiflow
-  - napari
+  - segment-anything
 
-  # ---- Viz + utilities ----
+  # ---- Viz + UI ----
   - matplotlib
   - matplotlib-scalebar
   - seaborn
-  - pyyaml
-  - tqdm
-  - openpyxl
+#  - vispy
+#  - pyqt6
+#  - napari
+
+  # ---- Jupyter / Notebook Tools ----
   - jupyterlab
   - ipykernel
   - ipywidgets
-  - numpy
-  - pandas
 
   # ---- Pip section ----
   - pip
   - pip:
+      # ---- Napari ----
+      - napari[all]
+
+      # ---- PyTorch ----
+      - --extra-index-url https://download.pytorch.org/whl/cu128
+      - torch
+      - torchvision
+      - torchaudio
+
+      # ---- BioIO readers ----
       - bioio
       - bioio-czi
       - bioio-lif
