@@ -5,6 +5,47 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-07-15 — Logging implementation, verified
+
+**Session goal:** implement the logging plan (configure_logging, print->logger conversions across
+run_pipeline.py/utils.py/qc_figures.py), then have Claude check the result against a fresh read of the code
+and a real test run, not against what was discussed earlier in the conversation.
+
+### Concepts learned
+
+- **`logger.exception()` bundles two independent choices you can actually split apart.** It's shorthand for
+  `logger.error(msg, exc_info=True)` — hardcoding both the severity (ERROR) and "attach a traceback"
+  together. But `exc_info=True` works on *any* level. `utils.py`'s Spotiflow fallback is a deliberate,
+  successful recovery (not a failure), so it stayed at `WARNING` — but `exc_info=True` was still added,
+  because `str(e)` alone can hide *where* in the load chain a failure happened (bad path vs. corrupted
+  checkpoint vs. version mismatch look identical as a bare message, but very different as a traceback).
+  Severity should answer "does a human need to look at this"; `exc_info` should answer "would the traceback
+  help them" — two separate questions, not one.
+- **A search-and-replace done for one reason can silently break something unrelated.** Fixing `mode.upper()`
+  inside log messages (for readability) accidentally spread to five output *filename* f-strings in
+  `run_pipeline.py`, changing `_run_objects_2d.csv` to `_run_objects_2D.csv` and breaking the established
+  lowercase naming convention. Caught by 4 failing tests in `test_run_pipeline.py` — a clean example of why
+  "we have tests for this" matters even for changes that feel purely cosmetic (logging cleanup, in this case).
+- **A function being defined correctly doesn't mean it's wired up.** `configure_logging()` in `cli.py` was
+  well-written but (as far as a fresh read of the file on disk showed) never actually called from `main()` —
+  meaning none of the logging work would have taken effect on a real run. Worth double-checking: did I
+  actually verify this from disk, or am I trusting an editor buffer that hasn't been saved yet? Follow-up
+  pending confirmation.
+- **Don't trust your own earlier audit without re-checking.** The original codebase audit (start of this
+  session) found several test files were empty stubs. By the time we got to the logging work, that was no
+  longer true — a separate commit (`babe381`, "test_run_pipeline finished") had already filled in
+  `test_run_pipeline.py`, and it turned out *none* of the test files were still empty. Claude initially wrote
+  a stale claim into `todo.txt` based on the old audit instead of re-reading current state — good reminder
+  that "I checked this earlier in the conversation" isn't the same as "this is still true now," especially
+  across a long session with real edits happening between checks.
+
+### Questions to follow up on
+
+- Resolve the `configure_logging()` wiring question — check `cli.py` for unsaved changes vs. what's on disk.
+- Once error-handling work starts: the per-scene `try/except` in `_process_file` already exists (added
+  alongside the logging work) — next session should build on it (failures list/CSV, file-level catch, a
+  failure-isolation test) rather than starting the design from scratch.
+
 ## 2026-07-15 — Error handling & robustness deep dive (implementation pending)
 
 **Session goal:** understand the principles before implementing per-file/per-scene failure isolation myself.

@@ -45,26 +45,41 @@ big different:
 ---
 code quality audit (2026-07-15, via Claude, see LEARNING_NOTES.md for details):
 
-1. error handling & robustness   <- principles discussed, implementation pending
-- per-file/per-scene failure isolation so one bad item doesn't kill the whole run
-- replace silent broad except Exception with logged, contextual failures (utils.py, qc_figures.py)
+1. error handling & robustness   <- working on this now
+- run_pipeline.py already has a per-scene try/except (_process_file, around _process_scene) - not starting
+  from zero, but it needs: (a) fix logging.exception(f"Scene {scene}...") - unfinished message, wrong logger
+  (b) a failures list/CSV alongside the successes, mirroring all_run_records
+  (c) a file-level try/except around _process_file's call in run_pipeline - doesn't exist yet, so a corrupt
+      file (BioImage() throws) or any error before the scene loop still kills the whole run
+  (d) a test simulating one scene raising, confirming the rest still process (see item 4 - no such test yet)
+- replace silent broad except Exception with logged, contextual failures (qc_figures.py still has 2 silent
+  except blocks from the original audit, ~line 274 and ~345 - utils.py's is already fixed, uses
+  logger.warning(..., exc_info=True))
 - decide: catch+skip for data/hardware errors vs fail-fast for config/programmer errors
 - fix qc_figures.py coor= typo (found via audit, ~line 328, only hit with 0-1 spots)
-- try/except only at run_pipeline orchestration layer (_process_file/_process_scene calls), not inside
-  segment_2d/segment_3d/measure_objects etc - those stay exception-transparent
+- try/except only at run_pipeline orchestration layer, not inside segment_2d/segment_3d/measure_objects etc
+  - those stay exception-transparent (this part of the design is settled, just needs finishing)
 
-2. logging & observability   <- working on this now
-- replace print() with logging module: levels, timestamps, log file + console
-- record which config produced which output CSV
+2. logging & observability   <- print() -> logger conversion done, 1 bug left
+- BUG (confirmed): configure_logging() is defined in cli.py but main() never calls it - goes straight from
+  load_config to run_pipeline, so no log file and no INFO+ on console yet on a real run. Fix: call
+  configure_logging(log_dir=Path(config["paths"]["out_dir"]) / "logs") in main(), before run_pipeline.
+- mode.upper() in run_pipeline.py's output filenames (_run_objects_2D.csv etc.) is INTENTIONAL, not a bug -
+  update the 4 tests in test_run_pipeline.py that still assert lowercase (lines ~151, 231, 280, 327) to match
+- once configure_logging is wired up: update test_cli.py to mock it (currently untested/unmocked)
+- record which config produced which output CSV - done (cli.py logs resolved config on load, once wired up)
 
 3. cluster / parallelization readiness
 - segmentation.use_gpu config flag is dead code, never read (utils.py hardcodes gpu=True)
 - no checkpointing/resume for interrupted runs
 - fully sequential file/scene loops, no parallel scheduling hooks for snakemake
 
-4. testing coverage
-- qc_figures.py (691 lines, largest module) has zero tests
-- test_detection.py, test_model_bundle.py, test_run_pipeline.py are empty stubs
+4. testing coverage   <- reassessed 2026-07-15, mostly in good shape
+- only real gap: qc_figures.py (691 lines, largest module) has zero tests, no test_qc_figures.py exists
+- everything else has real coverage: test_run_pipeline.py (10), test_model_bundle.py (8, covers the
+  fallback chain well), test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7),
+  test_assigment.py (5), test_config.py (4), test_cli.py (2), test_utils.py (1 parametrized)
+- missing test: one scene raising in _process_file's loop still processes the rest (needed for item 1)
 
 5. code organization
 - config.py has no schema/validation, KeyErrors surface far from the actual mistake

@@ -40,6 +40,8 @@ def main():
 
     config = load_config(args.config_path)
 
+    configure_logging(log_dir=Path(config["paths"]["out_dir"]) / "logs")
+    
     logger = logging.getLogger(__name__)
     logger.info(f"Loaded config from {args.config_path}: {config}")
 

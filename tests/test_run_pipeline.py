@@ -148,7 +148,7 @@ class TestProcessScene:
 
         mock_qc.assert_called_once()
         kwargs = mock_qc.call_args[1]
-        assert kwargs["out_path"] == tmp_path / "Control_S03_2d_qc.png"
+        assert kwargs["out_path"] == tmp_path / "Control_S03_2D_qc.png"
         assert kwargs["condition"] == "Control"
 
     def test_passes_filepath_name_to_measure_objects(
@@ -228,7 +228,7 @@ class TestProcessFile:
         assert result is not None
         assert len(result) == 2
         mock_summary.assert_called_once()
-        assert (tmp_path / "Control_objects_2d.csv").exists()
+        assert (tmp_path / "Control_objects_2D.csv").exists()
 
     def test_returns_none_when_no_scenes(
         self, mocker: MockerFixture, base_config, mock_models, tmp_path
@@ -277,7 +277,7 @@ class TestProcessFile:
             tab_dir=tmp_path,
         )
 
-        assert (tmp_path / "Treated-DrugA_objects_2d.csv").exists()
+        assert (tmp_path / "Treated-DrugA_objects_2D.csv").exists()
 
 
 # =====================================================================
@@ -324,7 +324,7 @@ class TestRunPipeline:
 
         # experiment name should be derived from data_folder.parent.name == "my_experiment"
         assert mock_run_summary.call_args[1]["experiment"] == "my_experiment"
-        assert (out_dir / "tables" / "_run_objects_2d.csv").exists()
+        assert (out_dir / "tables" / "_run_objects_2D.csv").exists()
 
     def test_returns_none_with_no_files_processed(
         self, mocker: MockerFixture, tmp_path
