@@ -1,0 +1,110 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A microscopy image analysis pipeline for Nikon-acquired images: segments "BAGs" (cell-like structures) in
+brightfield/segmentation channel using Cellpose-SAM, detects diffraction-limited spots in a second channel using
+Spotiflow, assigns spots to their containing BAG, and measures per-object morphology + spot counts/density. Runs
+in either 2D (single projection) or 3D (pseudo-3D stitched z-stack) mode, controlled by `mode.do_3d` in the config.
+
+The installable package is `spot-detector`, living under `src/spot_detector/`.
+
+## Commands
+
+Dependency management is via `uv` (recently migrated from conda — some conda/module-load artifacts still exist
+in `src/bash_scripts/` and are legacy/not the current workflow).
+
+```bash
+# install/sync environment
+uv sync
+
+# run the pipeline against a config file
+uv run spot-detector configs/config.yml
+# equivalently
+uv run python -m spot_detector.cli configs/config.yml
+
+# run all tests
+uv run pytest
+
+# run a single test file / test
+uv run pytest tests/test_segmentation.py
+uv run pytest tests/test_segmentation.py::TestSegment3D::test_output_shape -v
+```
+
+There is no configured linter (no ruff/flake8 config in `pyproject.toml`); `.ruff_cache/` is present locally but
+not wired into any command in this repo.
+
+## Architecture
+
+Pipeline entry point is `cli.py:main`, which loads `configs/config.yml` (via `config.py:load_config`) and calls
+`run_pipeline.py:run_pipeline`. Processing is a strict fan-out:
+
+```
+run_pipeline (one call)
+  -> _process_file (one per file in raw_data_dir)
+       -> _process_scene (one per scene/FOV within a multi-scene file, via BioImage)
+            1. segmentation_detection.segment_2d / segment_3d   (Cellpose-SAM)
+            2. segmentation_detection.detect_spots_spotiflow    (Spotiflow)
+            3. segmentation_detection.assign_spots_to_mask      (nearest-voxel lookup)
+            4. obejct_measurement.measure_objects               (regionprops_table -> per-object DataFrame)
+            5. qc_figures.make_qc_figure                        (per-scene multi-panel QC PNG)
+       -> concatenates scene DataFrames, writes `{condition}_objects_{mode}.csv`,
+          calls qc_figures.make_scene_summary_figure
+  -> concatenates all file DataFrames, writes `_run_objects_{mode}.csv`,
+     calls qc_figures.make_run_summary_figure
+```
+
+Key modules under `src/spot_detector/`:
+
+- `config.py` — trivial YAML loader, returns a plain `dict` (no schema validation/dataclass — config keys are
+  accessed by string throughout, e.g. `config["paths"]["cellpose_models_path"]`).
+- `utils.py` — `parse_condition_from_name` (strips a trailing `_<token><digits>` suffix from filenames to derive
+  the experimental condition, e.g. `Treated-DrugA_FOV3` -> `Treated-DrugA`), and `ModelBundle`, a dataclass that
+  loads + validates both models together. `ModelBundle.load()` is the only way to construct it. Spotiflow loading
+  has a fallback chain: try the custom model path from config -> if load fails or the model's dimensionality
+  (`model.config.is_3d`) doesn't match the pipeline's `do_3d` mode, fall back to a pretrained model
+  (`synth_complex` for 2D, `smfish_3d` for 3D).
+- `segmentation_detection.py` — the actual CV/ML calls. 2D segmentation runs Cellpose on a stdev-projection of the
+  z-stack; 3D segmentation runs Cellpose per-plane on a min-subtracted stack and stitches with `stitch_threshold`.
+  Both downscale by `segmentation.bin_factor` before inference and upscale masks back, then strip edge-touching
+  objects (`cellpose.utils.remove_edge_masks`). `assign_spots_to_mask` does nearest-voxel label lookup and raises
+  `ValueError` on a coordinate/mask dimensionality mismatch.
+- `obejct_measurement.py` (filename typo, intentional/existing — don't "fix" it without also updating the import
+  in `run_pipeline.py`) — turns masks + spot labels into a tidy per-object DataFrame via `skimage.regionprops_table`.
+  2D and 3D modes populate disjoint sets of columns (e.g. `Volume_um3` is NaN in 2D, `Area_um2`/`Eccentricity` are
+  NaN in 3D) rather than using separate schemas — this is intentional, keep both modes on one flat column set.
+- `qc_figures.py` — all matplotlib/seaborn plotting. `SpotData` and `ImageData` are dataclasses that derive
+  pixel/micron coordinate arrays from raw detector/image output (`__post_init__` does the unit conversion — treat
+  them as read-only views, not places to add pipeline logic). Three figure builders correspond to the three levels
+  of aggregation: `make_qc_figure` (per scene), `make_scene_summary_figure` (per condition/file), and
+  `make_run_summary_figure` (whole run).
+
+Config schema (`configs/config.yml`): `mode.do_3d`, `paths.{raw_data_dir,out_dir,cellpose_models_path,
+spotiflow_models_path}`, `channels.{segmentation_image,spot_image,misc}` (channel indices into the raw image),
+`segmentation.{use_gpu,bin_factor,stitch_threshold}`, `detection.{prob_thresh,min_distance}`. Model paths point
+outside the repo (`../_pipeline_assets/...`) — they're expected to exist in a sibling directory on the machine
+running the pipeline, not to be committed here.
+
+Output layout: `output/tables/{condition}_objects_{mode}.csv` and `output/tables/_run_objects_{mode}.csv` (rows
+are one segmented object each), plus matching PNGs under `output/figures/`.
+
+Input images are read via `bioio.BioImage`, which abstracts over Nikon `.nd2` and other formats (`.czi`, `.lif`,
+OME-TIFF) — the specific `bioio-*` plugin used depends on file extension, handled transparently by `bioio`.
+
+`notebooks/` contains exploratory/validation notebooks (`analysis.ipynb`, `pipeline_validation.ipynb`,
+`spot_detection_pipeline.ipynb`) used for visualizing pipeline output and comparing detected spots against source
+images — useful for understanding expected behavior but not part of the package.
+
+`src/bash_scripts/` and `workflow/` (Snakemake) are an in-progress orchestration layer (repo setup, HPC conda/module
+loading, raw-data staging to/from Dropbox, result upload) — several scripts are stubs or contain scratch notes
+rather than working end-to-end automation; don't assume they run as-is.
+
+## Testing conventions
+
+Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.). `conftest.py` currently has no shared fixtures.
+Tests mock heavy ML dependencies (Cellpose/Spotiflow model calls) via `pytest-mock` rather than loading real models
+or real microscopy files — keep new tests fast and offline. Several test files are currently empty stubs
+(`test_detection.py`, `test_model_bundle.py`, `test_run_pipeline.py`) awaiting coverage.

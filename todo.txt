@@ -1,6 +1,6 @@
 - cluster compatible with load module
 - bash for data manipulation, github cloning etc (rsync?)
-- nextflow
+- nextflow or snakemake
 
 
 ---
@@ -34,35 +34,40 @@ big different:
 - bash files to be included in python
 
 
-
-- use bioio from inputs
-- redo env to use less packages and most via conda
-- train spotiflow on 3d with napari
-    - make and label images
-    - train and evaluate
-    - evaluate on 2d
-- cellpose stitch_treshold ~0.4 on 4x downsampeled images with new models
-- stack - min zproject
-- make it for 3d (flattened and normal) and 2d 
-- rewrite the code
+- automatic config detection
+- experiment and data elucitated from config file location?
+- unit check for making figures
+- simplify unitcheck with conftest
+- write log file + console calls
+- cluster compatibility
 
 
+---
+code quality audit (2026-07-15, via Claude, see LEARNING_NOTES.md for details):
 
-Rewrite:
-input
-    bioio
-    based on ending chose bioio version to use
-    all standard format for data and metadata
-preprocessing
-    for bags img - zmin
-    for spots maybe the same (only for figures)
-    normalise intensisties (i think similar to what I have now)
-segmentation
-    2d or 3d as parameter
-    4x downsample as default
-        only a small code change
-detection
-    2d or 3d spotiflow
-    prob_tresh as parameter
-    figure out 3d assigment of spots to masks
-    calculate roi volume etc
+1. error handling & robustness   <- principles discussed, implementation pending
+- per-file/per-scene failure isolation so one bad item doesn't kill the whole run
+- replace silent broad except Exception with logged, contextual failures (utils.py, qc_figures.py)
+- decide: catch+skip for data/hardware errors vs fail-fast for config/programmer errors
+- fix qc_figures.py coor= typo (found via audit, ~line 328, only hit with 0-1 spots)
+- try/except only at run_pipeline orchestration layer (_process_file/_process_scene calls), not inside
+  segment_2d/segment_3d/measure_objects etc - those stay exception-transparent
+
+2. logging & observability   <- working on this now
+- replace print() with logging module: levels, timestamps, log file + console
+- record which config produced which output CSV
+
+3. cluster / parallelization readiness
+- segmentation.use_gpu config flag is dead code, never read (utils.py hardcodes gpu=True)
+- no checkpointing/resume for interrupted runs
+- fully sequential file/scene loops, no parallel scheduling hooks for snakemake
+
+4. testing coverage
+- qc_figures.py (691 lines, largest module) has zero tests
+- test_detection.py, test_model_bundle.py, test_run_pipeline.py are empty stubs
+
+5. code organization
+- config.py has no schema/validation, KeyErrors surface far from the actual mistake
+- experiment name inferred from folder structure (run_pipeline.py), can silently end up empty
+- obejct_measurement.py filename typo is existing/intentional, don't fix blindly
+---

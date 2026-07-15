@@ -6,6 +6,7 @@ import numpy as np
 # ROI Properties Calculation
 # =====================================================================
 
+
 def measure_objects(
     masks: np.ndarray,
     spot_labels: np.ndarray,
@@ -35,8 +36,9 @@ def measure_objects(
             spot counts, and metadata columns.
     """
     assert mode in ("2d", "3d"), "mode must be '2d' or '3d'"
-    assert masks.ndim == (3 if mode == "3d" else 2), \
+    assert masks.ndim == (3 if mode == "3d" else 2), (
         f"Expected {'3D' if mode == '3d' else '2D'} mask for mode='{mode}'"
+    )
 
     # --- spot counts ---
     spot_counts = (
@@ -47,7 +49,10 @@ def measure_objects(
 
     # --- regionprops_table ---
     props_3d = [
-        "label", "area", "bbox", "centroid",
+        "label",
+        "area",
+        "bbox",
+        "centroid",
         "equivalent_diameter_area",
     ]
     props_2d = props_3d + ["eccentricity"]
@@ -70,8 +75,8 @@ def measure_objects(
     if mode == "3d":
         df["Volume_um3"] = (raw["area"] * dz * dx * dx).round(4)
         df["Area_um2"] = np.nan
-        df["Spot_Density_per_um3"]  = df["Spot_Count"] / df["Volume_um3"]
-        df["Spot_Density_per_um2"]  = np.nan
+        df["Spot_Density_per_um3"] = df["Spot_Count"] / df["Volume_um3"]
+        df["Spot_Density_per_um2"] = np.nan
         df["Z_Span_um"] = ((raw["bbox-3"] - raw["bbox-0"]) * dz).round(4)
         df["Centroid_Z_um"] = (raw["centroid-0"] * dz).round(4)
         df["Centroid_Y_um"] = (raw["centroid-1"] * dx).round(4)
@@ -81,8 +86,8 @@ def measure_objects(
     else:
         df["Volume_um3"] = np.nan
         df["Area_um2"] = (raw["area"] * dx * dx).round(4)
-        df["Spot_Density_per_um3"]  = np.nan
-        df["Spot_Density_per_um2"]  = df["Spot_Count"] / df["Area_um2"]
+        df["Spot_Density_per_um3"] = np.nan
+        df["Spot_Density_per_um2"] = df["Spot_Count"] / df["Area_um2"]
         df["Z_Span_um"] = np.nan
         df["Centroid_Z_um"] = np.nan
         df["Centroid_Y_um"] = (raw["centroid-0"] * dx).round(4)

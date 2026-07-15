@@ -9,6 +9,7 @@ from types import SimpleNamespace
 # Segementation
 # =====================================================================
 
+
 def segment_2d(
     bf_stack: np.ndarray,
     model_cellpose: models.CellposeModel,
@@ -29,7 +30,7 @@ def segment_2d(
     else:
         std_proj = np.squeeze(bf_stack).astype(np.float32)
 
-    img_binned = block_reduce(std_proj, block_size=(factor, factor), func=np.mean) # type: ignore[arg-type]
+    img_binned = block_reduce(std_proj, block_size=(factor, factor), func=np.mean)  # type: ignore[arg-type]
 
     masks, _, _ = model_cellpose.eval(img_binned)
 
@@ -56,15 +57,16 @@ def segment_3d(
     Returns:
         np.ndarray: Segmentation masks, not touching the edges.
     """
-    min_substracted = bf_stack.astype(np.float32) - np.min(bf_stack, axis=0).astype(np.float32)
-    img_binned = block_reduce(min_substracted, block_size=(1,factor, factor), func=np.mean) # type: ignore[arg-type]
+    min_substracted = bf_stack.astype(np.float32) - np.min(bf_stack, axis=0).astype(
+        np.float32
+    )
+    img_binned = block_reduce(
+        min_substracted, block_size=(1, factor, factor), func=np.mean
+    )  # type: ignore[arg-type]
 
     masks, _, _ = model_cellpose.eval(
-        img_binned,
-        do_3D=False,
-        z_axis=0,
-        stitch_threshold=stitch_threshold
-        )
+        img_binned, do_3D=False, z_axis=0, stitch_threshold=stitch_threshold
+    )
 
     masks_resized = masks.repeat(factor, axis=-2).repeat(factor, axis=-1)
     masks_cleaned = np.zeros_like(masks_resized)
@@ -73,17 +75,19 @@ def segment_3d(
 
     return masks_cleaned
 
+
 # =====================================================================
 # Spot detection and assigment to masks
 # =====================================================================
+
 
 def detect_spots_spotiflow(
     spot_stack: np.ndarray,
     model_spotiflow: Spotiflow,
     prob_thresh: float,
     min_distance: int,
-    do_3d: bool
-    ) -> Tuple[np.ndarray, SimpleNamespace]:
+    do_3d: bool,
+) -> Tuple[np.ndarray, SimpleNamespace]:
     """Detect spot-like features in an image using the default Spotiflow model.
 
     Args:
@@ -104,18 +108,15 @@ def detect_spots_spotiflow(
             input_img = np.squeeze(spot_stack).astype(np.float32)
 
     points, details = model_spotiflow.predict(
-        img=input_img,
-        verbose=False,
-        prob_thresh=prob_thresh,
-        min_distance=min_distance
+        img=input_img, verbose=False, prob_thresh=prob_thresh, min_distance=min_distance
     )
 
     return points, details
 
+
 def assign_spots_to_mask(
-    coordinates: np.ndarray | list,
-    masks: np.ndarray
-    ) -> np.ndarray:
+    coordinates: np.ndarray | list, masks: np.ndarray
+) -> np.ndarray:
     """Assigns coordinates (spots) to masks (objects), for 2D and 3D outputs.
 
     Args:
