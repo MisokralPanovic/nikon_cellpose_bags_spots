@@ -16,7 +16,6 @@ channels:
 
 # cellpose segmentation
 segmentation:
-  model_name: "cpsam_20x_downsampeled_20250630"
   use_gpu: true
   bin_factor: 4
   stitch_threshold: 0.4

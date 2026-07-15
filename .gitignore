@@ -17,3 +17,6 @@ wheels/
 
 # .continue/
 .continue/
+
+# vscode
+.vscode/
