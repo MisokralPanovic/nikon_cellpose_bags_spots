@@ -125,7 +125,7 @@ def _process_file(
                 )
                 if scene_df is not None:
                     all_scene_records.append(scene_df)
-            except Exception as e:
+            except Exception:
                 logging.exception(f"Scene {scene}...")
 
     if not all_scene_records:
