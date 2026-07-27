@@ -45,20 +45,36 @@ big different:
 ---
 code quality audit (2026-07-15, via Claude, see LEARNING_NOTES.md for details):
 
-1. error handling & robustness   <- working on this now
-- run_pipeline.py already has a per-scene try/except (_process_file, around _process_scene) - not starting
-  from zero, but it needs: (a) fix logging.exception(f"Scene {scene}...") - unfinished message, wrong logger
-  (b) a failures list/CSV alongside the successes, mirroring all_run_records
-  (c) a file-level try/except around _process_file's call in run_pipeline - doesn't exist yet, so a corrupt
-      file (BioImage() throws) or any error before the scene loop still kills the whole run
-  (d) a test simulating one scene raising, confirming the rest still process (see item 4 - no such test yet)
-- replace silent broad except Exception with logged, contextual failures (qc_figures.py still has 2 silent
-  except blocks from the original audit, ~line 274 and ~345 - utils.py's is already fixed, uses
-  logger.warning(..., exc_info=True))
-- decide: catch+skip for data/hardware errors vs fail-fast for config/programmer errors
-- fix qc_figures.py coor= typo (found via audit, ~line 328, only hit with 0-1 spots)
-- try/except only at run_pipeline orchestration layer, not inside segment_2d/segment_3d/measure_objects etc
-  - those stay exception-transparent (this part of the design is settled, just needs finishing)
+1. error handling & robustness   <- DONE 2026-07-27 (mostly - see open items below), LEARNING_NOTES.md
+- run_pipeline.py: (a) logger.exception fixed, now names scene/file/condition and says "skipping"
+  (b) failures list/CSV added - single shared list threaded through _process_file as a parameter, so both
+      the per-scene and per-file except blocks append to the same table -> _run_failures_{MODE}.csv,
+      written unconditionally before the "no records -> return None" early-exit (that ordering was itself
+      a bug during implementation: writing it after the early return meant a run where every file failed
+      never got its failures CSV - fixed by moving the write above the check)
+  (c) file-level try/except now wraps _process_file's call in run_pipeline - a corrupt file (BioImage()
+      throwing) is now caught, logged, appended to failures, and the file loop continues
+  (d) isolation tests added: TestProcessFile.test_handles_corrupted_scene, TestRunPipeline.test_handles_
+      corrupted_file - full suite green (67 passed)
+  (e) img.set_scene(scene) moved inside the per-scene try block (was outside it originally - a scene-switch
+      failure would otherwise propagate past the whole file, discarding every already-successful scene)
+- qc_figures.py: both silent except blocks now logger.warning(..., exc_info=True); both coor= typos fixed
+  (there were 2 occurrences, not just the 1 originally found by the audit)
+- try/except only at run_pipeline orchestration layer - held; _process_scene/_process_file's helpers remain
+  exception-transparent
+- test_cli.py updated to mock configure_logging (see item 2) - suite no longer leaks output/logs/*.log
+  into the repo root on every run
+
+open, NOT yet fixed - deliberately deferred, not oversights:
+- decide: catch+skip for data/hardware errors vs fail-fast for config/programmer errors - STILL undecided;
+  both except blocks catch bare Exception uniformly. E.g. assign_spots_to_mask's dimension-mismatch
+  ValueError (do_3d disagrees with actual data) will fail identically on every scene - burns a full
+  inference pass per scene just to log the same error N times, instead of failing once, loudly.
+- make_qc_figure() is the last call in _process_scene, not separately guarded - if it fails (matplotlib
+  error, disk full mid-save), the whole scene is recorded as failed even though measure_objects already
+  produced a valid scene_df just above it. Consistent with the settled "no try/except below orchestration
+  layer" design, so not necessarily wrong - but a QC rendering hiccup currently costs real measurement
+  data, not just a missing PNG. Worth a conscious decision, not an oversight fix.
 
 2. logging & observability   <- print() -> logger conversion done, 1 bug left
 - BUG (confirmed): configure_logging() is defined in cli.py but main() never calls it - goes straight from
@@ -66,13 +82,47 @@ code quality audit (2026-07-15, via Claude, see LEARNING_NOTES.md for details):
   configure_logging(log_dir=Path(config["paths"]["out_dir"]) / "logs") in main(), before run_pipeline.
 - mode.upper() in run_pipeline.py's output filenames (_run_objects_2D.csv etc.) is INTENTIONAL, not a bug -
   update the 4 tests in test_run_pipeline.py that still assert lowercase (lines ~151, 231, 280, 327) to match
-- once configure_logging is wired up: update test_cli.py to mock it (currently untested/unmocked)
+- DONE 2026-07-27: test_cli.py now mocks configure_logging - confirmed by running the suite twice and
+  checking `git status`: before the fix, every run left an untracked output/logs/run_*.log in the repo
+  root (real handlers attached to the root logger via the unmocked call); after, nothing leaks
 - record which config produced which output CSV - done (cli.py logs resolved config on load, once wired up)
 
 3. cluster / parallelization readiness
 - segmentation.use_gpu config flag is dead code, never read (utils.py hardcodes gpu=True)
 - no checkpointing/resume for interrupted runs
 - fully sequential file/scene loops, no parallel scheduling hooks for snakemake
+- GPU memory measured empirically 2026-07-27 (RTX 4060 laptop, 7.8GB total, real .nd2 scene from
+  data/None_0.nd2, both configured checkpoints: cpsam_pseudo3d_4x_20260506 + bag_spot_model).
+  Numbers are torch.cuda's *reserved* memory (what the OS sees as unavailable to a second
+  process), not *allocated* (live tensors) - reserved is the number that matters for deciding
+  how many concurrent worker processes fit on one GPU, since the caching allocator doesn't
+  release it until the process exits.
+    - both models loaded, idle: ~1.8GB reserved
+    - peak during one scene (segment + detect), 3D mode: ~2.7GB reserved
+    - peak during one scene, 2D mode: ~3.9GB reserved (but see bug below - this ran the
+      wrong spotiflow model)
+  -> tentative verdict: process-per-GPU-slice parallelization looks feasible on shared cluster
+     GPUs with >=16-24GB (2-4 concurrent workers with headroom); tight on an 8GB card (1 worker
+     safely, 2 only with no other tenant and some risk). NOT yet a green light - the test scene
+     had only 1 object / 18-49 spots, and Cellpose's flow-field postprocessing memory scales with
+     instance count, not just image size, so a busy real FOV (dozens-hundreds of BAGs) needs the
+     same measurement before sizing cluster GPU requests. Re-run probe against a representative
+     high-density scene before committing to a parallel worker count.
+  -> BUG surfaced during this measurement: config.yml has mode.do_3d: false, but the configured
+     spotiflow_models_path (bag_spot_model) is a 3D-only model. ModelBundle's documented fallback
+     chain (utils.py) catches the mismatch and silently substitutes the generic pretrained
+     synth_complex model instead of raising - so a real 2D run today silently skips the user's
+     trained spot model. Either do_3d should be true, or spotiflow_models_path needs a 2D-trained
+     model - needs a decision, not just a fallback.
+  -> concurrency stress test 2026-07-27: ran 2 concurrent 2D-mode workers for real on the 8GB
+     card (worst case ~3.9GB/worker individually). Both completed correctly, peak COMBINED memory
+     via nvidia-smi (not torch's self-reported stats) = ~6.96GB - but worker 2's log shows a
+     transient CUDA OOM warning mid-run (~80MB free at that instant) that the allocator recovered
+     from. Conclusion: 8GB is maxed out / not safe for 2 workers in production. On 12GB that
+     leaves ~5.3GB headroom over the observed peak, so 2 workers should fit reliably there - but
+     re-run this same concurrency test against a dense real scene (many objects/spots, not the
+     1-object/49-spot calibration scene used so far) before finalizing worker count for the
+     cluster request.
 
 4. testing coverage   <- reassessed 2026-07-15, mostly in good shape
 - only real gap: qc_figures.py (691 lines, largest module) has zero tests, no test_qc_figures.py exists

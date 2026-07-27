@@ -329,6 +329,10 @@ def _panel_flow(ax: Axes, flow_details: SimpleNamespace) -> None:
         rgb = _flow_to_rgb(flow_data)
         ax.imshow(rgb)
     except Exception as e:
+        logger.warning(
+            f"Constructing flow panel failed ({e}), falling back to empty panel with error message",
+            exc_info=True,
+        )
         ax.text(
             0.5,
             0.5,
@@ -408,7 +412,7 @@ def _panel_z_distribution(
                 "Insufficient Spots for NND",
                 ha="center",
                 va="center",
-                coor="gray",
+                color="gray",
             )
             ax.grid(False)
         else:
@@ -433,7 +437,9 @@ def _panel_z_distribution(
                 ax.plot(x_vals, kde(x_vals), color="#FF66CC", linewidth=1.5)
 
             except Exception:
-                pass
+                logger.warning(
+                    "Constructing KDE figure failed, skipping.", exc_info=True
+                )
         ax.set_title("Spot Proximity Distribution")
         ax.set_xlabel("Nearest Neighbor Distance (µm)")
         ax.set_ylabel("Density")
@@ -456,7 +462,7 @@ def _panel_ecdf(
         config (dict): Config dictionary containg 'prob_thresh' value used for spotiflow detection.
     """
     if not spots.has_spots:
-        ax.text(0.5, 0.5, "No Spots Detected", ha="center", va="center", coor="gray")
+        ax.text(0.5, 0.5, "No Spots Detected", ha="center", va="center", color="gray")
         ax.axis("off")
     else:
         prob_arr = np.array(flow_details.prob)

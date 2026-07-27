@@ -5,6 +5,68 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-07-27 — Error handling & robustness, implemented and verified
+
+**Session goal:** finish item 1 from the audit (per-scene/per-file failure isolation, failures CSV, the two
+silent `qc_figures.py` excepts, the `coor=` typo). Claude explained the design and reviewed each increment;
+I wrote the actual diffs myself.
+
+### Concepts learned
+
+- **"Kill the pipeline" means *not* catching, not catching-and-passing.** My first attempt wrapped
+  `ModelBundle.load()` and `BioImage(filepath)` in `try/except: pass` placeholders, intending that to crash
+  the run. It does the opposite — swallowing the exception lets execution fall through with `models`/`img`
+  never assigned, so the real crash becomes an uninformative `UnboundLocalError` several lines later instead
+  of the original, informative exception at the point of failure. The fix for "this should kill the pipeline"
+  was to delete the `try/except` entirely, not to write a smarter one. Separately, this exposed that the two
+  cases actually needed *different* treatment: `ModelBundle.load()` genuinely should crash (setup, runs once,
+  fail-fast at the boundary); `BioImage(filepath)` should NOT be caught locally at all, because it's called
+  per-file inside a loop that's *already* wrapped by an outer per-file try/except in `run_pipeline()` — the
+  inner catch was pre-empting the outer one and needed to just not exist.
+- **A shared mutable list threaded through as a parameter, appended to at multiple call depths, is a
+  legitimate pattern for accumulating cross-cutting state (like failures) without changing return types.**
+  Alternative would've been `_process_file` returning `(scene_df, failures)` tuples and stitching them
+  together at each level — more "pure," but would've broken every existing caller's return-value handling.
+  Passing one `failures: list` down from `run_pipeline()` into `_process_file()`, appended to at both the
+  scene-level and file-level except blocks, kept both failure sources landing in one final DataFrame with
+  zero return-signature disruption.
+- **Order of operations around an early return matters as much as the exception handling itself.** First
+  version of the failures-CSV write sat *after* `if not all_run_records: return None` — meaning a run where
+  every single file failed (exactly the case you'd most want a failures report for) never got one, because
+  the early return skipped straight past it. Moving the write above the check fixed it. General lesson:
+  whenever a function has an early-exit guard, check whether anything *after* it should actually have run
+  regardless of which branch triggered the exit.
+- **Test doubles need to match the real control flow, not just the intent.** `test_handles_corrupted_file`
+  gave `_process_file`'s mock a 3-item `side_effect` list (2 successes + 1 exception) but only created 2 real
+  files on disk in `tmp_path` — the file loop in `run_pipeline()` only calls `_process_file` once per real
+  file via `data_folder.iterdir()`, so the mock was only invoked twice, silently starving the third
+  `side_effect` entry and producing a confusing `assert 2 == 3` instead of a clear "your fixture is wrong"
+  signal. Fixed by adding a third `.touch()`'d file so file count matches side_effect length.
+- **A "fixed" bug in a wired-up feature can reopen a different test hygiene bug.** `cli.py`'s `main()` now
+  actually calls `configure_logging()` (closing the older confirmed bug from the 2026-07-15 audit). But
+  `test_cli.py`'s test never mocked it, so *fixing* the wiring bug turned an inert function call into a real
+  one — every test run started attaching real file+console handlers to the root logger and leaving untracked
+  `output/logs/run_*.log` files in the repo root. Confirmed via `git status` before and after adding
+  `mocker.patch("spot_detector.cli.configure_logging")`. General lesson: closing a "not wired up yet" bug can
+  silently activate side effects in code that assumed it would stay inert — worth an explicit pass over
+  anything that calls the newly-wired function, tests included.
+- **Where a `try:` starts inside a loop determines what it actually protects.** `img.set_scene(scene)` was
+  originally called *before* the per-scene `try:`, not inside it — meaning a scene-switch failure (corrupted
+  scene metadata) wasn't isolated per-scene at all; it would propagate out of the whole file and get caught
+  one level up by the per-*file* handler, discarding every already-successful scene for that file along with
+  it. Moving the line inside the `try` block closed the gap.
+
+### Questions to follow up on
+
+- Still undecided: catch+skip (operational errors) vs. fail-fast (config/programmer errors) as *different*
+  exception classes, rather than one bare `except Exception` at each level. `assign_spots_to_mask`'s
+  dimension-mismatch `ValueError` is the concrete example — it'll fail identically on every scene, which is
+  pure wasted compute under the current uniform-catch design.
+- `make_qc_figure()` failing currently discards an already-computed `scene_df` along with it, since it's the
+  last call in `_process_scene` and that function stays intentionally exception-transparent. Is that
+  acceptable (encourages fixing the QC code instead of masking it) or should measurement data survive a
+  rendering failure? Not decided — flagged in `todo.txt`.
+
 ## 2026-07-15 — Logging implementation, verified
 
 **Session goal:** implement the logging plan (configure_logging, print->logger conversions across

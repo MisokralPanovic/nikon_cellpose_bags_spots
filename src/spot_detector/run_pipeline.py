@@ -51,21 +51,46 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
     models = ModelBundle.load(config=config, do_3d=do_3d)
 
     all_run_records = []
+    failures = []
+
     file_list = [p for p in data_folder.iterdir() if p.is_file()]
 
     for filepath in file_list:
-        scene_df = _process_file(
-            filepath=filepath,
-            config=config,
-            models=models,
-            mode=mode,
-            do_3d=do_3d,
-            experiment=experiment,
-            fig_dir=fig_dir,
-            tab_dir=tab_dir,
+        try:
+            scene_df = _process_file(
+                filepath=filepath,
+                config=config,
+                models=models,
+                mode=mode,
+                do_3d=do_3d,
+                experiment=experiment,
+                fig_dir=fig_dir,
+                tab_dir=tab_dir,
+                failures=failures,
+            )
+            if scene_df is not None:
+                all_run_records.append(scene_df)
+
+        except Exception as e:
+            logger.exception(f"Processing file {filepath.name} failed ({e}), skipping")
+            failures.append(
+                {
+                    "Experiment": experiment,
+                    "Source_File": filepath.name,
+                    "Condition": parse_condition_from_name(filepath.stem),
+                    "Scene": np.nan,
+                    "Error": str(e),
+                    "Error_Type": type(e).__name__,
+                }
+            )
+
+    if failures:
+        failures_df = pd.DataFrame(failures)
+        run_failures_csv_path = tab_dir / f"_run_failures_{mode.upper()}.csv"
+        failures_df.to_csv(run_failures_csv_path, index=False)
+        logger.info(
+            f"Saved run failures CSV: {run_failures_csv_path.name} ({len(failures_df)} rows)"
         )
-        if scene_df is not None:
-            all_run_records.append(scene_df)
 
     if not all_run_records:
         return None
@@ -95,10 +120,12 @@ def _process_file(
     experiment: str,
     fig_dir: Path,
     tab_dir: Path,
+    failures: list,
 ) -> pd.DataFrame | None:
     """Process a single multi-scene image file. Returns combined scene DataFrame or None."""
     condition = parse_condition_from_name(filepath.stem)
     img = BioImage(filepath)
+
     all_scene_records = []
 
     logger.info(f"--- Processing: {filepath.name} ---")
@@ -108,9 +135,9 @@ def _process_file(
 
     with logging_redirect_tqdm():
         for scene in tqdm(range(num_scenes)):
-            img.set_scene(scene)
-            logger.debug(f"Scene {scene:02d} / {num_scenes - 1}")
             try:
+                img.set_scene(scene)
+                logger.debug(f"Scene {scene:02d} / {num_scenes - 1}")
                 scene_df = _process_scene(
                     img=img,
                     scene=scene,
@@ -125,8 +152,21 @@ def _process_file(
                 )
                 if scene_df is not None:
                     all_scene_records.append(scene_df)
-            except Exception:
-                logging.exception(f"Scene {scene}...")
+
+            except Exception as e:
+                logger.exception(
+                    f"Scene {scene} on {filepath.name} ({condition}) failed ({e}), skipping"
+                )
+                failures.append(
+                    {
+                        "Experiment": experiment,
+                        "Source_File": filepath.name,
+                        "Condition": condition,
+                        "Scene": scene,
+                        "Error": str(e),
+                        "Error Type": type(e).__name__,
+                    }
+                )
 
     if not all_scene_records:
         return None
