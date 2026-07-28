@@ -52,7 +52,8 @@ class ModelBundle:
     def _load_cellpose(config: dict) -> models.CellposeModel:
         logger.debug("Loading Cellpose model...")
         return models.CellposeModel(
-            gpu=True, pretrained_model=str(config["paths"]["cellpose_models_path"])
+            gpu=config["segmentation"]["use_gpu"],
+            pretrained_model=str(config["paths"]["cellpose_models_path"]),
         )
 
     @staticmethod

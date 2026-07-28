@@ -13,7 +13,7 @@ from types import SimpleNamespace
 def segment_2d(
     bf_stack: np.ndarray,
     model_cellpose: models.CellposeModel,
-    factor: int = 4,
+    factor: int,
 ) -> np.ndarray:
     """Run BAG-pretrained Cellpose-SAM in 2D on stdev projection of stack, using image downscaling for faster processing.
 
@@ -43,8 +43,8 @@ def segment_2d(
 def segment_3d(
     bf_stack: np.ndarray,
     model_cellpose: models.CellposeModel,
-    factor: int = 4,
-    stitch_threshold: float = 0.4,
+    factor: int,
+    stitch_threshold: float,
 ) -> np.ndarray:
     """Run BAG-pretrained Cellpose-SAM in pseudo-3D (segementing individual planes and stiching them together) on minimal projection substraced stack, using image downscaling for faster processing.
 
@@ -61,8 +61,10 @@ def segment_3d(
         np.float32
     )
     img_binned = block_reduce(
-        min_substracted, block_size=(1, factor, factor), func=np.mean
-    )  # type: ignore[arg-type]
+        min_substracted,
+        block_size=(1, factor, factor),  # type: ignore[arg-type]
+        func=np.mean,
+    )
 
     masks, _, _ = model_cellpose.eval(
         img_binned, do_3D=False, z_axis=0, stitch_threshold=stitch_threshold

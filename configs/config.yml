@@ -5,22 +5,23 @@ mode:
 paths:
   raw_data_dir: "data"
   out_dir: "output"
-  cellpose_models_path: "../_pipeline_assets/cellpose_models/cpsam_pseudo3d_4x_20260506"
-  spotiflow_models_path: "../_pipeline_assets/bag_spot_model"
 
 # channels
 channels:
   segmentation_image: 0
   spot_image: 1
-  misc: 2
 
 # cellpose segmentation
 segmentation:
+  use_default_model: false
+  cellpose_model_path: "../_pipeline_assets/cellpose_models/cpsam_pseudo3d_4x_20260506"
   use_gpu: true
   bin_factor: 4
   stitch_threshold: 0.4
 
 # spotiflow detection
 detection:
+  use_default_model: false
+  spotiflow_model_path: "../_pipeline_assets/bag_spot_model"
   prob_thresh: 0.3
   min_distance: 1

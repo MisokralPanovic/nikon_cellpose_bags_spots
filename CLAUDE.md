@@ -58,8 +58,17 @@ run_pipeline (one call)
 
 Key modules under `src/spot_detector/`:
 
-- `config.py` — trivial YAML loader, returns a plain `dict` (no schema validation/dataclass — config keys are
-  accessed by string throughout, e.g. `config["paths"]["cellpose_models_path"]`).
+- `config.py` — YAML loader validated via pydantic. `load_config` returns a `PipelineConfig` (not a plain
+  dict), built from nested `BaseModel`s (`ModeConfig`, `PathsConfig`, `ChannelConfig`, `SegmentationConfig`,
+  `DetectionConfig`), all frozen (`model_config = ConfigDict(frozen=True)`) since nothing downstream should
+  mutate config after load. Migration in progress (started 2026-07-28, full history/decisions in `todo.txt`
+  item 5): `config.py` itself is done, but call sites elsewhere (`cli.py`, `run_pipeline.py`, `utils.py`,
+  `qc_figures.py`) still use dict-style `config["section"]["key"]` access pending rewrite to
+  `config.section.key`. Two further schema changes are agreed but not yet coded: moving
+  `cellpose_models_path`/`spotiflow_models_path` out of `PathsConfig` and into `SegmentationConfig`/
+  `DetectionConfig` respectively (co-locating each model's path with that model's other settings), each
+  paired with a new `use_default_model: bool = False` flag and a local `@model_validator` requiring the path
+  to be set unless the flag opts into a pretrained default.
 - `utils.py` — `parse_condition_from_name` (strips a trailing `_<token><digits>` suffix from filenames to derive
   the experimental condition, e.g. `Treated-DrugA_FOV3` -> `Treated-DrugA`), and `ModelBundle`, a dataclass that
   loads + validates both models together. `ModelBundle.load()` is the only way to construct it. Spotiflow loading
@@ -81,11 +90,17 @@ Key modules under `src/spot_detector/`:
   of aggregation: `make_qc_figure` (per scene), `make_scene_summary_figure` (per condition/file), and
   `make_run_summary_figure` (whole run).
 
-Config schema (`configs/config.yml`): `mode.do_3d`, `paths.{raw_data_dir,out_dir,cellpose_models_path,
-spotiflow_models_path}`, `channels.{segmentation_image,spot_image,misc}` (channel indices into the raw image),
-`segmentation.{use_gpu,bin_factor,stitch_threshold}`, `detection.{prob_thresh,min_distance}`. Model paths point
-outside the repo (`../_pipeline_assets/...`) — they're expected to exist in a sibling directory on the machine
-running the pipeline, not to be committed here.
+Config schema (`configs/config.yml`, validated by `config.py`'s `PipelineConfig`): `mode.do_3d`,
+`paths.{raw_data_dir,out_dir,cellpose_models_path,spotiflow_models_path}`, `channels.{segmentation_image,
+spot_image}` (channel indices into the raw image — `channels.misc` was dropped, confirmed zero references in
+`src/`), `segmentation.{use_gpu,bin_factor,stitch_threshold}`, `detection.{prob_thresh,min_distance}`.
+`raw_data_dir`/`cellpose_models_path`/`spotiflow_models_path` are pydantic `DirectoryPath` (fails fast at
+config-load time if the directory doesn't exist, instead of failing confusingly deep inside
+`ModelBundle.load()`/`BioImage()` later); `out_dir` is a plain `Path` since the pipeline creates it via
+`mkdir`. Model paths point outside the repo (`../_pipeline_assets/...`) — they're expected to exist in a
+sibling directory on the machine running the pipeline, not to be committed here. This structure is
+mid-restructure — see the `config.py` bullet above for the planned move of the two model paths into
+`segmentation`/`detection`.
 
 Output layout: `output/tables/{condition}_objects_{mode}.csv` and `output/tables/_run_objects_{mode}.csv` (rows
 are one segmented object each), plus matching PNGs under `output/figures/`.

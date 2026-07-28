@@ -89,7 +89,27 @@ open, NOT yet fixed - deliberately deferred, not oversights:
 
 3. cluster / parallelization readiness
 - segmentation.use_gpu config flag is dead code, never read (utils.py hardcodes gpu=True)
-- no checkpointing/resume for interrupted runs
+- no checkpointing/resume for interrupted runs - DEFERRED to the Snakemake migration (2026-07-27 discussion,
+  see LEARNING_NOTES.md), not something to hand-build in run_pipeline.py now. Reasoning:
+    - overnight-run crash resilience splits into two failure classes: catchable Python exceptions (CUDA
+      OOM, corrupt file, etc. - already handled per-file/per-scene, see item 1) vs. the process getting
+      SIGKILLed outright (OS OOM killer, preemption, power loss) - the latter can NEVER be caught or logged
+      from inside the process, so the only real defense is making sure completed work is already durable on
+      disk before the kill, not smarter exception handling. Per-file CSVs already satisfy this; the
+      run-level rollup (_run_objects_{MODE}.csv) currently only gets written once at the very end and could
+      instead be reconstructed by globbing tab_dir for already-written per-file CSVs - cheap, still open.
+    - "redo with a new model/params" vs. "resume a killed run with the same config" need to be told apart,
+      or a naive skip-if-exists resume would silently reuse a DIFFERENT config's stale output and blend two
+      runs' results under one filename with no visible error. Planned workflow: symlink raw data + fresh
+      output folder per analysis variant (matches the old repo-per-run notes at the top of this file) makes
+      "redo" safe by construction (nothing to collide with); "resume in place" would need either a config
+      fingerprint check or an explicit refuse-to-overwrite-unless-forced guard - not built.
+    - Snakemake's DAG + rule params already solve exactly this (only rebuild targets whose inputs/params
+      changed) - building a hand-rolled version now risks a weaker, unsafe duplicate of what the planned
+      migration (item 3 of the original pre-audit list, `workflow/`) gives for free. Revisit there instead.
+- separately (not deferred): after catching a CUDA OOM, call torch.cuda.empty_cache() before continuing to
+  the next scene/file - the caching allocator can leave fragmented/reserved memory behind after an OOM, so
+  without this the *next* item can fail too even though it would otherwise fit
 - fully sequential file/scene loops, no parallel scheduling hooks for snakemake
 - GPU memory measured empirically 2026-07-27 (RTX 4060 laptop, 7.8GB total, real .nd2 scene from
   data/None_0.nd2, both configured checkpoints: cpsam_pseudo3d_4x_20260506 + bag_spot_model).
@@ -129,10 +149,133 @@ open, NOT yet fixed - deliberately deferred, not oversights:
 - everything else has real coverage: test_run_pipeline.py (10), test_model_bundle.py (8, covers the
   fallback chain well), test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7),
   test_assigment.py (5), test_config.py (4), test_cli.py (2), test_utils.py (1 parametrized)
-- missing test: one scene raising in _process_file's loop still processes the rest (needed for item 1)
+- DONE 2026-07-27: scene/file isolation tests added (TestProcessFile.test_handles_corrupted_scene,
+  TestRunPipeline.test_handles_corrupted_file) - see item 1
+
+- conftest.py streamlining, scoped 2026-07-28 (not started - flagged while rewriting test_config.py, revisit
+  after the pydantic migration lands): conftest.py is currently empty; several test files redeclare
+  similar-looking fixtures. Checked the actual fixture bodies (not just names) before recommending anything:
+    - MOST same-named fixtures across files are false friends, not real duplicates - don't merge blindly:
+      `base_config` in test_run_pipeline.py (channels/segmentation/detection keys) vs test_model_bundle.py
+      (paths.cellpose_models_path/spotiflow_models_path with fake paths, still pre-rename key names) are
+      unrelated shapes; `base_params` in test_detection.py (prob_thresh/min_distance/do_3d) vs
+      test_object_measurement.py (dx/dz/mode/condition/...) are unrelated - pure name coincidence in both
+      cases.
+    - real candidate: test_run_pipeline.py's and test_model_bundle.py's `base_config` are both exactly the
+      "dict pretending to be a config" problem item 5 exists to fix - both already on the list to become
+      PipelineConfig instances. Once both are real PipelineConfigs built from one valid-config source of
+      truth, they can plausibly share one conftest.py fixture instead of two divergent dicts - a natural
+      side effect of finishing the migration, not a separate refactor to schedule.
+    - `stack_2d`/`stack_3d` in test_detection.py (20x20) vs test_segmentation.py (40x40) are the same
+      concept (random float32 stack) but different sizes for different purposes - suggested a FACTORY
+      fixture in conftest.py (returns a function taking `shape`) instead of merging into one fixed-size
+      fixture, so each file requests the size it needs without coupling the two files' array sizes together.
+    - separately noticed, unrelated to conftest.py: test_detection.py's stack_2d/stack_3d docstrings say
+      "40x40"/"3x40x40" but the actual arrays are (20,20)/(5,20,20) - stale, copy-pasted from
+      test_segmentation.py. Harmless, one-line fix whenever that file is touched.
 
 5. code organization
 - config.py has no schema/validation, KeyErrors surface far from the actual mistake
+  <- IN PROGRESS, starting 2026-07-28: migrating to pydantic (`uv add pydantic` not yet run). Scoped
+     2026-07-27, see LEARNING_NOTES.md for the full design discussion. Plan:
+       - load_config() will return a PipelineConfig model (not a plain dict + .model_dump()) - real
+         attribute-access rewrite, not just boundary validation. Every `config: dict` signature becomes
+         `config: PipelineConfig`, every `config["section"]["key"]` becomes `config.section.key`.
+       - full call-site inventory (grep-verified 2026-07-27): cli.py (1 site), qc_figures.py (1, inside
+         _panel_ecdf - consider passing prob_thresh: float directly instead of the whole config, since
+         that's the only field it needs), run_pipeline.py (7 sites), utils.py (2 sites, ModelBundle).
+         Test fixtures needing PipelineConfig instead of raw dicts: test_cli.py, test_run_pipeline.py,
+         test_model_bundle.py, test_config.py.
+       - recommended build order: config.py's PipelineConfig schema + test_config.py first (in isolation)
+         -> cli.py -> utils.py -> run_pipeline.py -> qc_figures.py -> remaining tests.
+       - config.yml structure decisions (all settled 2026-07-27):
+           - channels.misc: DROP - confirmed zero references anywhere in src/ (grepped); was historically
+             used for a ground-truth fluorescent marker channel, not needed now.
+           - segmentation.use_gpu: was dead (utils.py hardcoded gpu=True) AND actively misdocumented -
+             PKG-INFO/README claims "GPU use is optional and controlled per-run via segmentation.use_gpu"
+             which was false. FIXED 2026-07-27 in utils.py (_load_cellpose now reads
+             config["segmentation"]["use_gpu"]) - will need rewriting again to config.segmentation.use_gpu
+             once PipelineConfig lands. NOTE: this fix currently makes
+             test_model_bundle.py::TestLoadCellpose::test_calls_cellpose_models_with_correct_path fail
+             with KeyError('segmentation') - expected/known, the dict fixture predates the fix and is
+             getting rewritten to PipelineConfig anyway, not worth a throwaway patch first.
+           - mode.do_3d: staying nested under `mode:` as-is (no strong reason to flatten - "doesn't matter"
+             per discussion, defaulted to the zero-diff option).
+       - typing choices for the new schema: paths.raw_data_dir / paths.cellpose_models_path /
+         paths.spotiflow_models_path -> pydantic DirectoryPath (fails fast at load time if the path
+         doesn't exist, instead of failing confusingly deep inside ModelBundle.load()/BioImage() later);
+         paths.out_dir stays plain Path (pipeline creates it via mkdir, shouldn't need to pre-exist);
+         detection.prob_thresh / segmentation.stitch_threshold -> Field(gt=0, lt=1) (probability-like,
+         unbounded today); segmentation.bin_factor / detection.min_distance / channels.* -> Field(ge=0).
 - experiment name inferred from folder structure (run_pipeline.py), can silently end up empty
 - obejct_measurement.py filename typo is existing/intentional, don't fix blindly
+
+  RESOLVED 2026-07-28 (was open in "Questions to follow up on"): qc_figures.py's _panel_ecdf /
+  make_qc_figure will take prob_thresh: float directly instead of the whole config/PipelineConfig -
+  narrows the signature to what the function actually depends on, decouples a plotting helper from the
+  full config schema. Folded into the call-site rewrite for that file (step 5 of the build order above).
+
+  IMPLEMENTATION STATUS 2026-07-28: config.py's PipelineConfig schema is written (ModeConfig, PathsConfig,
+  ChannelConfig, SegmentationConfig, DetectionConfig, all frozen via ConfigDict(frozen=True) - including the
+  4 nested models, not just PipelineConfig, so nothing downstream can mutate a section in place either).
+  test_config.py, and the call-site rewrite in cli.py/utils.py/run_pipeline.py/qc_figures.py, not started yet.
+
+  DESIGN ADDITION 2026-07-28, not yet coded - "run with no custom models" support:
+  - cellpose_models_path / spotiflow_models_path move OUT of PathsConfig, into SegmentationConfig /
+    DetectionConfig respectively (co-located with each model's other settings), becoming
+    Optional[DirectoryPath] = None.
+  - each of those two sections gets a new use_default_model: bool = False field, plus a LOCAL
+    @model_validator(mode="after") enforcing "path must be set unless use_default_model is True" - kept
+    local to each section (not a cross-section PipelineConfig-level validator) since the path and its flag
+    now live in the same model.
+  - two independent flags, not one shared paths.use_default_models bool - rejected the single-flag version
+    because the project already hit a real case of "custom model for one stage, not the other" (the
+    do_3d/spotiflow_models_path mismatch bug from the 2026-07-27 GPU profiling session, item 3 above).
+  - default False (not True): forces an explicit opt-in to the pretrained fallback rather than a bare/
+    incomplete config silently defaulting to a generic model - the "be vocal about defaults" requirement.
+    Cellpose has its own robust pretrained default (no fallback code needed on our side); Spotiflow's
+    fallback chain already exists in utils.py (ModelBundle) and already logs when it triggers - that logging
+    is what makes the default "vocal", not the schema itself. See LEARNING_NOTES.md 2026-07-28 for the full
+    reasoning trail.
+  - PathsConfig shrinks to just raw_data_dir + out_dir once this lands.
+  - follow-up once implemented: config.yml needs the two path keys moved under segmentation:/detection:,
+    and CLAUDE.md's Config schema paragraph needs updating again to match (currently still describes the
+    pre-restructure paths.{...} shape, flagged there as "mid-restructure").
+
+  RESOLVED 2026-07-28: "flag wins" semantics for use_default_model when BOTH a path AND
+  use_default_model=True are present in config. The schema alone only guarantees the path is optional when
+  the flag is True - it says nothing about which model actually gets loaded if a path is ALSO configured
+  alongside the flag. Two options were: (a) flag wins - True always loads the pretrained default, configured
+  path gets ignored (and should be logged as ignored); (b) path wins - a present, valid path is always used
+  regardless of the flag, so use_default_model only matters when the path is absent. Picked (a): makes the
+  flag an actual behavioral switch (useful for e.g. temporarily A/B-testing against the default without
+  deleting a configured path) rather than "path is allowed to be missing," which is a weaker knob than
+  designed. NOT YET IMPLEMENTED - this lives in ModelBundle.load()/_load_cellpose/_load_spotiflow_from_config
+  in utils.py, none of which has been touched for this migration yet. When implemented: log clearly when a
+  configured path is being ignored because use_default_model=True, same "vocal about defaults" bar as the
+  existing Spotiflow fallback logging.
+
+6. segmentation correctness   <- BUG CONFIRMED 2026-07-28, not yet fixed (found while pydantic-validating
+   bin_factor, deliberately deferred to stay scoped to the config migration)
+- segment_2d/segment_3d (segmentation_detection.py): block_reduce() does NOT require bin_factor to evenly
+  divide the image shape - it silently zero-pads up to the next multiple before reducing (verified:
+  skimage.measure.block_reduce on a (513,513) image with factor=4 returns (129,129), not an error).
+  masks.repeat(factor, ...) then scales back up by exactly `factor`, landing on the PADDED size (516,516),
+  not the original (513,513) - masks_cleaned ends up larger than bf_stack whenever image dims aren't evenly
+  divisible by bin_factor. No crash anywhere in the chain.
+- downstream impact: assign_spots_to_mask (run_pipeline.py) indexes into this oversized `masks` using spot
+  coordinates from the full-resolution, UNBINNED spot_stack - indices still land in-bounds (no crash), but
+  mask content near the edges is corrupted (zero-padding got averaged into the last real block before
+  Cellpose even ran) and everything downstream (edge-mask stripping, spot assignment, QC overlays) works
+  off a shifted/wrong-shaped array. Silent, dimension-dependent - only bites on scenes whose shape isn't
+  evenly divisible by bin_factor, so easy to miss in testing against one well-behaved image size.
+- explicitly NOT something PipelineConfig/SegmentationConfig can validate: divisibility depends on each
+  image's shape, which isn't known until BioImage opens the file - one config.yml runs across every
+  file/scene in raw_data_dir, and they aren't guaranteed to share dimensions.
+- fix belongs in segmentation_detection.py. Two real options discussed 2026-07-28, neither picked yet:
+    (a) crop the upscaled mask back to original shape - masks_resized[:orig_shape] on each axis before
+        edge-mask removal; simple, keeps output aligned, discards the few padded pixels (never real data)
+    (b) fail fast - check image_shape[i] % factor == 0 at the top of segment_2d/segment_3d and raise
+        ValueError naming the offending scene, instead of silently producing misaligned output
+  leaning (a) since it's a real fix rather than just surfacing the limitation, but not decided.
 ---
