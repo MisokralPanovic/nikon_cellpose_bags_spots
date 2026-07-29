@@ -4,6 +4,7 @@ from cellpose import models
 from spotiflow.model import Spotiflow
 import logging
 
+from spot_detector.config import PipelineConfig
 
 logger = logging.getLogger(__name__)
 
@@ -34,46 +35,46 @@ class ModelBundle:
     spotiflow: Spotiflow
 
     @classmethod
-    def load(cls, config: dict, do_3d: bool) -> "ModelBundle":
+    def load(cls, config: PipelineConfig) -> "ModelBundle":
         """Load and validate both models from config.
 
         Args:
-            config (dict): Pipeline config dict containing cellpose_models_path and spotiflow_models_path.
+            config (PipelineConfig): Pipeline config PipelineConfig object containing cellpose_model_path and spotiflow_model_path.
             do_3d (bool): Whether the pipeline is running in 3D mode.
 
         Returns:
             ModelBundle: Validated ModelBundle.
         """
         cellpose = cls._load_cellpose(config=config)
-        spotiflow = cls._load_spotiflow(config=config, do_3d=do_3d)
+        spotiflow = cls._load_spotiflow(config=config)
         return cls(cellpose=cellpose, spotiflow=spotiflow)
 
     @staticmethod
-    def _load_cellpose(config: dict) -> models.CellposeModel:
+    def _load_cellpose(config: PipelineConfig) -> models.CellposeModel:
         logger.debug("Loading Cellpose model...")
         return models.CellposeModel(
-            gpu=config["segmentation"]["use_gpu"],
-            pretrained_model=str(config["paths"]["cellpose_models_path"]),
+            gpu=config.segmentation.use_gpu,
+            pretrained_model=str(config.segmentation.cellpose_model_path),
         )
 
     @staticmethod
-    def _load_spotiflow(config: dict, do_3d: bool) -> Spotiflow:
+    def _load_spotiflow(config: PipelineConfig) -> Spotiflow:
         logger.debug("Loading Spotiflow model...")
-        model = ModelBundle._load_spotiflow_from_config(config=config, do_3d=do_3d)
-        model = ModelBundle._validate_spotiflow_mode(model=model, do_3d=do_3d)
+        model = ModelBundle._load_spotiflow_from_config(config=config)
+        model = ModelBundle._validate_spotiflow_mode(model=model, config=config)
         return model
 
     @staticmethod
-    def _load_spotiflow_from_config(config: dict, do_3d: bool) -> Spotiflow:
+    def _load_spotiflow_from_config(config: PipelineConfig) -> Spotiflow:
         """Attempts to load Spotiflow model from config path, falling back to pretrained default on failure."""
         try:
-            model = Spotiflow.from_folder(str(config["paths"]["spotiflow_models_path"]))
+            model = Spotiflow.from_folder(str(config.detection.spotiflow_model_path))
             logger.info(
-                f"Loaded custom Spotiflow model from: {config['paths']['spotiflow_models_path']}"
+                f"Loaded custom Spotiflow model from: {config.detection.spotiflow_model_path}"
             )
             return model
         except Exception as e:
-            fallback = "smfish_3d" if do_3d else "synth_complex"
+            fallback = "smfish_3d" if config.mode.do_3d else "synth_complex"
             logger.warning(
                 f"Custom model failed ({e}), falling back to {fallback}...",
                 exc_info=True,
@@ -81,14 +82,14 @@ class ModelBundle:
             return Spotiflow.from_pretrained(fallback)
 
     @staticmethod
-    def _validate_spotiflow_mode(model: Spotiflow, do_3d: bool) -> Spotiflow:
+    def _validate_spotiflow_mode(model: Spotiflow, config: PipelineConfig) -> Spotiflow:
         """Checks model dimentionality matches pipeline mode, replacing with  pretrained default if not."""
         model_is_3d = model.config.is_3d
-        if model_is_3d == do_3d:
+        if model_is_3d == config.mode.do_3d:
             return model
 
-        mode_str = "3D" if do_3d else "2D"
-        fallback = "smfish_3d" if do_3d else "synth_complex"
+        mode_str = "3D" if config.mode.do_3d else "2D"
+        fallback = "smfish_3d" if config.mode.do_3d else "synth_complex"
         logger.warning(
             f"Mode conflict: model is {'3D' if model_is_3d else '2D'} "
             f"but pipeline is {mode_str}. Overriding with {fallback}..."

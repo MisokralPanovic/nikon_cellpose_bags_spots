@@ -12,6 +12,9 @@ from scipy.stats import gaussian_kde
 from types import SimpleNamespace
 from matplotlib_scalebar.scalebar import ScaleBar
 
+
+from spot_detector.config import PipelineConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -451,7 +454,7 @@ def _panel_ecdf(
     spots: SpotData,
     spot_labels: np.ndarray,
     flow_details: SimpleNamespace,
-    config: dict,
+    config: PipelineConfig,
 ) -> None:
     """Spotiflow probability score ECDF (inside vs background)
     Args:
@@ -459,7 +462,7 @@ def _panel_ecdf(
         spots (SpotData): SpotData object.
         spot_labels (np.ndarray): Spot object labels.
         flow_details (SimpleNamespace): Spotiflow probability score object.
-        config (dict): Config dictionary containg 'prob_thresh' value used for spotiflow detection.
+        config (PipelineConfig): Config dictionary containg 'prob_thresh' value used for spotiflow detection.
     """
     if not spots.has_spots:
         ax.text(0.5, 0.5, "No Spots Detected", ha="center", va="center", color="gray")
@@ -486,12 +489,12 @@ def _panel_ecdf(
                 label=f"{label} (n={len(subset)})",
             )
         ax.axvline(
-            config["detection"]["prob_thresh"],
+            config.detection.prob_thresh,
             color="gray",
             linewidth=0.8,
             linestyle=":",
             alpha=0.6,
-            label=f"thresh={config['detection']['prob_thresh']}",
+            label=f"thresh={config.detection.prob_thresh}",
         )
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
@@ -591,7 +594,7 @@ def make_qc_figure(
     flow_details: SimpleNamespace,
     dx: float,
     dz: float,
-    config: dict,
+    config: PipelineConfig,
 ) -> None:
     """Generate a 2×3 panel QC figure for one scene.
 
@@ -616,7 +619,7 @@ def make_qc_figure(
         flow_details (SimpleNamespace): Spotiflow details object (flow, prob attributes).
         dx (float): XY pixel size in µm.
         dz (float): Z pixel size in µm.
-        config (dict): Pipeline config dict (must contain 'prob_thresh', dpi, figsize).
+        config (PipelineConfig): Pipeline config PipelineConfig object (must contain 'prob_thresh').
     """
     is_3d = mode == "3d"
     n_obj = len(np.unique(masks)) - 1

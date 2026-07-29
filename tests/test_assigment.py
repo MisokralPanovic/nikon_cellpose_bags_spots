@@ -2,6 +2,10 @@ import numpy as np
 import pytest
 from spot_detector.segmentation_detection import assign_spots_to_mask
 
+# =====================================================================
+# Fixtures
+# =====================================================================
+
 
 @pytest.fixture
 def simple_2d_mask():
@@ -17,6 +21,11 @@ def simple_3d_mask():
     mask = np.zeros((5, 10, 10), dtype=int)
     mask[:, 3:7, 3:7] = 1
     return mask
+
+
+# =====================================================================
+# assign_spots_to_mask
+# =====================================================================
 
 
 def test_spots_inside_object(simple_2d_mask):

@@ -3,6 +3,10 @@ import pytest
 from pytest_mock import MockerFixture
 from spot_detector.segmentation_detection import segment_2d, segment_3d
 
+# =====================================================================
+# Fixtures
+# =====================================================================
+
 
 @pytest.fixture
 def mock_cellpose_2d(mocker: MockerFixture):
@@ -29,34 +33,28 @@ def mock_cellpose_3d(mocker: MockerFixture):
     return model
 
 
-@pytest.fixture
-def stack_2d():
-    """Standard 40x40 2D float32 input image."""
-    return np.random.rand(40, 40).astype(np.float32)
-
-
-@pytest.fixture
-def stack_3d():
-    """Standard 3x40x40 3D float32 image stack."""
-    return np.random.rand(3, 40, 40).astype(np.float32)
+# =====================================================================
+# segment_2d
+# =====================================================================
 
 
 class TestSegment2D:
-    def test_calls_model_eval(self, mock_cellpose_2d, stack_2d):
-        segment_2d(bf_stack=stack_2d, model_cellpose=mock_cellpose_2d, factor=4)
+    def test_calls_model_eval(self, mock_cellpose_2d, make_stack):
+        stack = make_stack((40, 40))
+        segment_2d(bf_stack=stack, model_cellpose=mock_cellpose_2d, factor=4)
         assert mock_cellpose_2d.eval.called
 
-    def test_output_shape_matches_input_after_upscale(self, mock_cellpose_2d, stack_2d):
+    def test_output_shape_matches_input_after_upscale(
+        self, mock_cellpose_2d, make_stack
+    ):
+        stack = make_stack((40, 40))
         # factor=4 downscales (40x40 -> 10x10), function should upscale back
-        result = segment_2d(
-            bf_stack=stack_2d, model_cellpose=mock_cellpose_2d, factor=4
-        )
+        result = segment_2d(bf_stack=stack, model_cellpose=mock_cellpose_2d, factor=4)
         assert result.shape == (40, 40)
 
-    def test_edge_touching_removal(self, mock_cellpose_2d, stack_2d):
-        result = segment_2d(
-            bf_stack=stack_2d, model_cellpose=mock_cellpose_2d, factor=4
-        )
+    def test_edge_touching_removal(self, mock_cellpose_2d, make_stack):
+        stack = make_stack((40, 40))
+        result = segment_2d(bf_stack=stack, model_cellpose=mock_cellpose_2d, factor=4)
         # corner region (where the edge-touching object was) should be background
         assert result[0, 0] == 0
         # interior region (where the surviving object was) should be foreground
@@ -64,17 +62,23 @@ class TestSegment2D:
         # exactly one object should remain after edge removal: background + 1 survivor
         assert len(np.unique(result)) == 2
 
-    def test_3d_input_uses_stdev_projection(self, mock_cellpose_2d):
-        stack = np.random.rand(5, 40, 40).astype(np.float32)
+    def test_3d_input_uses_stdev_projection(self, mock_cellpose_2d, make_stack):
+        stack = make_stack((5, 40, 40))
         segment_2d(bf_stack=stack, model_cellpose=mock_cellpose_2d, factor=4)
         called_arg = mock_cellpose_2d.eval.call_args[0][0]
         assert called_arg.ndim == 2  # projected down to 2D before binning
 
 
+# =====================================================================
+# segment_3d
+# =====================================================================
+
+
 class TestSegment3D:
-    def test_calls_model_eval_with_3d_kwargs(self, mock_cellpose_3d, stack_3d):
+    def test_calls_model_eval_with_3d_kwargs(self, mock_cellpose_3d, make_stack):
+        stack = make_stack((3, 40, 40))
         segment_3d(
-            bf_stack=stack_3d,
+            bf_stack=stack,
             model_cellpose=mock_cellpose_3d,
             factor=4,
             stitch_threshold=0.4,
@@ -84,18 +88,20 @@ class TestSegment3D:
         assert kwargs["z_axis"] == 0
         assert kwargs["stitch_threshold"] == 0.4
 
-    def test_output_shape(self, mock_cellpose_3d, stack_3d):
+    def test_output_shape(self, mock_cellpose_3d, make_stack):
+        stack = make_stack((3, 40, 40))
         result = segment_3d(
-            bf_stack=stack_3d,
+            bf_stack=stack,
             model_cellpose=mock_cellpose_3d,
             factor=4,
             stitch_threshold=0.4,
         )
         assert result.shape == (3, 40, 40)
 
-    def test_edge_clearing_applied_per_z_plane(self, mock_cellpose_3d, stack_3d):
+    def test_edge_clearing_applied_per_z_plane(self, mock_cellpose_3d, make_stack):
+        stack = make_stack((3, 40, 40))
         result = segment_3d(
-            bf_stack=stack_3d,
+            bf_stack=stack,
             model_cellpose=mock_cellpose_3d,
             factor=4,
             stitch_threshold=0.4,

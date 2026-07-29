@@ -146,33 +146,30 @@ open, NOT yet fixed - deliberately deferred, not oversights:
 
 4. testing coverage   <- reassessed 2026-07-15, mostly in good shape
 - only real gap: qc_figures.py (691 lines, largest module) has zero tests, no test_qc_figures.py exists
-- everything else has real coverage: test_run_pipeline.py (10), test_model_bundle.py (8, covers the
-  fallback chain well), test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7),
-  test_assigment.py (5), test_config.py (4), test_cli.py (2), test_utils.py (1 parametrized)
+- everything else has real coverage: test_run_pipeline.py (12, real PipelineConfig fixtures as of 2026-07-29
+  - see item 5), test_model_bundle.py (8, covers the fallback chain well, same PipelineConfig rewrite done),
+  test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7), test_assigment.py (5),
+  test_config.py (44 as of 2026-07-28, up from 4 - full PipelineConfig schema coverage, see item 5),
+  test_cli.py (2), test_utils.py (1 parametrized, 13 cases). 107 tests total as of 2026-07-29.
 - DONE 2026-07-27: scene/file isolation tests added (TestProcessFile.test_handles_corrupted_scene,
   TestRunPipeline.test_handles_corrupted_file) - see item 1
 
-- conftest.py streamlining, scoped 2026-07-28 (not started - flagged while rewriting test_config.py, revisit
-  after the pydantic migration lands): conftest.py is currently empty; several test files redeclare
-  similar-looking fixtures. Checked the actual fixture bodies (not just names) before recommending anything:
-    - MOST same-named fixtures across files are false friends, not real duplicates - don't merge blindly:
-      `base_config` in test_run_pipeline.py (channels/segmentation/detection keys) vs test_model_bundle.py
-      (paths.cellpose_models_path/spotiflow_models_path with fake paths, still pre-rename key names) are
-      unrelated shapes; `base_params` in test_detection.py (prob_thresh/min_distance/do_3d) vs
-      test_object_measurement.py (dx/dz/mode/condition/...) are unrelated - pure name coincidence in both
-      cases.
-    - real candidate: test_run_pipeline.py's and test_model_bundle.py's `base_config` are both exactly the
-      "dict pretending to be a config" problem item 5 exists to fix - both already on the list to become
-      PipelineConfig instances. Once both are real PipelineConfigs built from one valid-config source of
-      truth, they can plausibly share one conftest.py fixture instead of two divergent dicts - a natural
-      side effect of finishing the migration, not a separate refactor to schedule.
-    - `stack_2d`/`stack_3d` in test_detection.py (20x20) vs test_segmentation.py (40x40) are the same
-      concept (random float32 stack) but different sizes for different purposes - suggested a FACTORY
-      fixture in conftest.py (returns a function taking `shape`) instead of merging into one fixed-size
-      fixture, so each file requests the size it needs without coupling the two files' array sizes together.
-    - separately noticed, unrelated to conftest.py: test_detection.py's stack_2d/stack_3d docstrings say
-      "40x40"/"3x40x40" but the actual arrays are (20,20)/(5,20,20) - stale, copy-pasted from
-      test_segmentation.py. Harmless, one-line fix whenever that file is touched.
+- conftest.py streamlining - DONE 2026-07-29, matches the 2026-07-28 scoping almost exactly:
+    - `make_config(**overrides)` (factory fixture: builds real tmp_path-backed files/dirs, merges
+      `**overrides` into a valid base dict, returns `PipelineConfig(**merged)`) now lives in conftest.py and
+      is shared by test_cli.py, test_run_pipeline.py, test_model_bundle.py, test_detection.py - exactly the
+      "dict pretending to be a config" problem this was scoped to fix, now that all three are real
+      PipelineConfig instances from one source of truth instead of divergent dicts. Because PipelineConfig
+      (and every nested model) is frozen, tests needing a different value per-test (e.g. mode.do_3d) call
+      make_config(mode={"do_3d": True}) to get a fresh instance rather than mutating a shared one - confirmed
+      by hitting a real pydantic.ValidationError ("Instance is frozen") when mutation was tried directly.
+    - `make_stack(shape)` (factory fixture: np.random.rand(*shape).astype(np.float32)) replaced the fixed-size
+      stack_2d/stack_3d fixtures in both test_detection.py and test_segmentation.py, exactly the factory
+      approach scoped below - also incidentally resolved the stale "40x40" docstring noted below, since the
+      fixed-size fixtures (and their docstrings) no longer exist.
+    - `base_params` in test_detection.py vs test_object_measurement.py confirmed still unrelated (different
+      call signatures for different functions under test) and deliberately left local, not merged - same
+      false-friend risk as the old base_config pair, just never had a reason to converge like base_config did.
 
 5. code organization
 - config.py has no schema/validation, KeyErrors surface far from the actual mistake
@@ -215,10 +212,36 @@ open, NOT yet fixed - deliberately deferred, not oversights:
   narrows the signature to what the function actually depends on, decouples a plotting helper from the
   full config schema. Folded into the call-site rewrite for that file (step 5 of the build order above).
 
-  IMPLEMENTATION STATUS 2026-07-28: config.py's PipelineConfig schema is written (ModeConfig, PathsConfig,
-  ChannelConfig, SegmentationConfig, DetectionConfig, all frozen via ConfigDict(frozen=True) - including the
-  4 nested models, not just PipelineConfig, so nothing downstream can mutate a section in place either).
-  test_config.py, and the call-site rewrite in cli.py/utils.py/run_pipeline.py/qc_figures.py, not started yet.
+  IMPLEMENTATION STATUS 2026-07-28: config.py's PipelineConfig schema is written and DONE, including the
+  use_default_model restructuring below (ModeConfig, PathsConfig, ChannelConfig, SegmentationConfig,
+  DetectionConfig, all frozen via ConfigDict(frozen=True) - including the 4 nested models, not just
+  PipelineConfig). config.yml updated to match (cellpose_model_path/spotiflow_model_path under
+  segmentation:/detection:, singular naming). test_config.py DONE (44 tests: TestYAML, TestDefaultModels
+  LoadLogic, TestFieldConstraints, TestDefaults, TestPathValidation, TestRequiredFields, TestFrozen - full
+  schema coverage including the FilePath/DirectoryPath wrong-kind-of-path cases that would have caught the
+  cellpose_model_path bug).
+
+  DONE 2026-07-29: the call-site rewrite - cli.py, utils.py/ModelBundle, run_pipeline.py, qc_figures.py all
+  migrated from config["section"]["key"] to config.section.key (grep-verified: zero `config[` occurrences
+  left anywhere in src/spot_detector/). qc_figures.py's _panel_ecdf/make_qc_figure narrowed to
+  prob_thresh: float per the resolved decision above. ModelBundle.load() dropped its redundant separate
+  do_3d argument (config.mode.do_3d is read internally now) - call site in run_pipeline.py simplified to
+  match. Test fixtures rewritten to match: test_cli.py, test_run_pipeline.py, test_model_bundle.py all now
+  build real PipelineConfig instances via a shared make_config factory fixture in conftest.py (see item 4).
+  Two real bugs caught by actually running the tests, not just reading the diff, during this rewrite:
+    - qc_figures.py _panel_ecdf: a stray trailing comma survived the config["detection"]["prob_thresh"] ->
+      config.detection.prob_thresh rewrite inside an f-string brace (f"thresh={config.detection.prob_thresh,}"),
+      silently turning the interpolated value into a 1-tuple (renders as "thresh=(0.3,)") - syntactically
+      valid Python, invisible to pytest/type-checkers, only visible by reading the rendered QC figure legend.
+    - test_model_bundle.py: a fixture named mock_validate_passtrhough (patches ModelBundle.
+      _validate_spotiflow_mode via mocker.patch.object, side_effect=lambda model, config: model) was being
+      CALLED in three test bodies (mock_validate_passtrhough()) as if it needed "activating" - but a
+      mocker.patch fixture is already active the moment pytest resolves it as a dependency. Calling the
+      returned Mock invokes its side_effect with zero args, raising TypeError: missing 2 required positional
+      arguments. Fix was deleting the erroneous call, not changing the fixture.
+  STILL NOT IMPLEMENTED: the "flag wins" use_default_model precedence logic itself (see the design decision
+  below) - ModelBundle/_load_cellpose/_load_spotiflow_from_config load whatever path is configured
+  unconditionally and never check use_default_model at all.
 
   DESIGN ADDITION 2026-07-28, not yet coded - "run with no custom models" support:
   - cellpose_models_path / spotiflow_models_path move OUT of PathsConfig, into SegmentationConfig /

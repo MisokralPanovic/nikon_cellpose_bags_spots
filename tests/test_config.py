@@ -10,6 +10,10 @@ from spot_detector.config import (
 )
 from pydantic import ValidationError
 
+# =====================================================================
+# Fixtures
+# =====================================================================
+
 
 @pytest.fixture
 def full_config_dict(tmp_path):
@@ -47,6 +51,11 @@ def full_config_dict(tmp_path):
     return config_dic
 
 
+# =====================================================================
+# YAML Loading
+# =====================================================================
+
+
 class TestYAML:
     def test_load_config_reads_yaml(self, tmp_path, full_config_dict):
         config_file = tmp_path / "config.yml"
@@ -70,6 +79,11 @@ class TestYAML:
 
         with pytest.raises(Exception):
             load_config(config_file)
+
+
+# =====================================================================
+# Default Model Loading Logic
+# =====================================================================
 
 
 class TestDefaultModelsLoadLogic:
@@ -118,6 +132,11 @@ class TestDefaultModelsLoadLogic:
         assert detection.spotiflow_model_path is not None
 
 
+# =====================================================================
+# Field Constraints
+# =====================================================================
+
+
 class TestFieldConstraints:
     @pytest.mark.parametrize(
         "section, field, invalid_value",
@@ -146,6 +165,11 @@ class TestFieldConstraints:
             model_cls(**full_config_dict[section])
 
 
+# =====================================================================
+# Defaults
+# =====================================================================
+
+
 class TestDefaults:
     @pytest.mark.parametrize(
         "section, field, expected_default",
@@ -166,6 +190,11 @@ class TestDefaults:
         result = PipelineConfig(**full_config_dict)
 
         assert getattr(getattr(result, section), field) == expected_default
+
+
+# =====================================================================
+# Path Validation
+# =====================================================================
 
 
 class TestPathValidation:
@@ -221,6 +250,11 @@ class TestPathValidation:
             model_cls(**full_config_dict[section])
 
 
+# =====================================================================
+# Required Fields
+# =====================================================================
+
+
 class TestRequiredFields:
     def test_raises_with_missing_section(self, full_config_dict):
         del full_config_dict["paths"]
@@ -244,6 +278,11 @@ class TestRequiredFields:
 
         with pytest.raises(ValueError):
             PipelineConfig(**full_config_dict)
+
+
+# =====================================================================
+# Frozen Model Behavior
+# =====================================================================
 
 
 class TestFrozen:

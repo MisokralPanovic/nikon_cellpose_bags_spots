@@ -5,6 +5,98 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-07-29 — Pydantic config migration: call-site rewrite finished, conftest.py streamlined
+
+**Session goal:** finish the call-site rewrite scoped 2026-07-28 (`config["section"]["key"]` ->
+`config.section.key` across `cli.py`, `utils.py`, `run_pipeline.py`, `qc_figures.py`) and the matching test
+fixture rewrite, then act on the `conftest.py` streamlining scoped the same day. I wrote the code this time;
+Claude reviewed each file by actually running the affected tests, not just reading the diff - caught two real
+bugs this way (see below), both mechanical slips from the dict->attribute rewrite itself, not design flaws.
+
+**Call-site rewrite: done, verified file-by-file.** Confirmed via `grep -rn "config\["` across
+`src/spot_detector/` returning zero hits - every call site now reads `config.section.key`.
+`ModelBundle.load()` also dropped a now-redundant separate `do_3d` argument once `config.mode.do_3d` was
+available internally everywhere it's needed; `run_pipeline.py`'s call site simplified to match.
+
+- **A stray comma survives a mechanical dict->attribute rewrite and is invisible to every automated check.**
+  `qc_figures.py`'s `_panel_ecdf` had `config['detection']['prob_thresh']` rewritten to
+  `config.detection.prob_thresh` correctly in one spot, but a second occurrence one line below (inside an
+  f-string brace, building the plot legend label) kept a trailing comma from the original dict-subscript
+  edit: `f"thresh={config.detection.prob_thresh,}"`. That's syntactically valid Python - the comma makes it
+  a 1-tuple, rendering as `"thresh=(0.3,)"` instead of `"thresh=0.3"`. Neither pytest nor a type checker
+  flags this; it only shows up by reading the actual rendered figure. General lesson: a search-and-replace
+  across similar-looking lines can leave a leftover token that changes *meaning* without breaking syntax -
+  worth actually eyeballing the diff around every occurrence, not just trusting the substitution pattern held.
+- **A mocked fixture is already active the moment pytest resolves it - calling its return value is a
+  different operation entirely.** `test_model_bundle.py` had a `mock_validate_passtrhough` fixture (wraps
+  `mocker.patch.object(ModelBundle, "_validate_spotiflow_mode", side_effect=lambda model, config: model)`),
+  correctly requested as a fixture in three tests, but each test body then also called it directly:
+  `mock_validate_passtrhough()`. That doesn't "activate" anything - the patch already replaced
+  `ModelBundle._validate_spotiflow_mode` when the fixture ran. Calling the returned `MagicMock` with zero
+  arguments instead *invokes* it, running the `side_effect` lambda with no `model`/`config`, raising
+  `TypeError: missing 2 required positional arguments`. Confirmed by actually running the tests (3 failures,
+  identical traceback each time) rather than assuming the fixture-injection pattern used correctly elsewhere
+  in the same file (`mock_from_pretrained`, never called) meant this one was fine too. Fix was deleting the
+  spurious call, not touching the fixture.
+- **Reusing a config fixture across a file that also serializes it can break silently when the fixture's
+  return type changes.** `test_cli.py` had `config_file.write_text(yaml.dump(full_config_dict))` when the
+  fixture returned a plain dict; once the fixture was swapped for `make_config()` (returning a real
+  `PipelineConfig`), the same line became `yaml.dump(config)` on a pydantic model. `yaml.dump` doesn't know
+  how to serialize a `BaseModel` as config data - it falls back to PyYAML's unsafe `!!python/object`
+  representer, producing something `load_config`'s `yaml.safe_load` could never parse back. The test still
+  passed, because `load_config` itself was fully mocked (`return_value=config`) - nobody ever read the file's
+  actual content. Fixed by replacing the write with `config_file.touch()`, since the file only needed to
+  *exist* as a path for the `assert_called_once_with(config_file)` check. Lesson: a test can keep passing
+  while quietly writing meaningless output, if nothing downstream ever reads that output back - worth asking
+  "is this file's content actually exercised, or just its existence?" before trusting a passing assertion.
+- **Test coupling should match the layer being tested, not whatever fixture happens to be lying around.**
+  Considered deriving `test_detection.py`'s `base_params` (`prob_thresh`/`min_distance`/`do_3d`) from
+  `make_config()` for consistency with the rest of the suite - rejected, because `detect_spots_spotiflow`
+  itself takes three plain scalars, not a `PipelineConfig` (`segmentation_detection.py` doesn't import
+  `config.py` at all). Threading `PipelineConfig` through would couple a low-level unit test to a schema it
+  doesn't depend on, and would weaken the assertions: `base_params` deliberately uses non-default values
+  (`0.5`/`10` vs `PipelineConfig`'s `0.3`/`1` defaults) specifically so `assert kwargs["prob_thresh"] == 0.5`
+  proves the value actually flowed through, rather than passing coincidentally because both layers happen to
+  default to the same number.
+
+**`conftest.py` streamlining: done, matches the 2026-07-28 scoping almost exactly.** `make_config(**overrides)`
+(tmp_path-backed factory building a real, validated `PipelineConfig`) is now shared by `test_cli.py`,
+`test_run_pipeline.py`, `test_model_bundle.py`, `test_detection.py`. `make_stack(shape)` (parametrized
+`np.random.rand(*shape).astype(np.float32)`) replaced the fixed-size `stack_2d`/`stack_3d` fixtures in both
+`test_detection.py` and `test_segmentation.py` - also incidentally fixed the stale "40x40" docstring flagged
+2026-07-28, since the fixed-size fixtures it was attached to no longer exist. `base_params` in
+`test_detection.py` vs `test_object_measurement.py` confirmed still a false-friend name collision (different
+call signatures for different functions) and deliberately left local, not merged.
+
+- **A parametrized factory fixture is safe to share across files in a way a fixed-value fixture with the same
+  name isn't.** This confirms the 2026-07-28 hypothesis directly: `stack_2d`/`stack_3d` (fixed 20x20 vs 40x40)
+  couldn't be merged without one file silently inheriting the other's implicit size assumption, but
+  `make_stack(shape)` has no implicit default at all - every caller states its own shape, so there's nothing
+  for two files to disagree about. The general rule: hoist fixtures into `conftest.py` when the *behavior* is
+  identical (a factory with explicit parameters has no hidden behavior to diverge on); don't hoist merely
+  because the *name* matches across files.
+- **Frozen pydantic models mean per-test config variation requires a new instance, not a mutated one.**
+  Verified directly: `config.mode.do_3d = True` on an already-built `PipelineConfig` raises
+  `pydantic.ValidationError` ("Instance is frozen"), and `model_copy(update={"mode": ModeConfig(do_3d=True)})`
+  does work (returns a distinct object, original untouched) but skips re-validation on the replaced field -
+  fine for a field no validator depends on, but not a safe general substitute for reconstructing via
+  `PipelineConfig(**dict)` when the changed field could interact with a `@model_validator`. This is why
+  `make_config` reconstructs from a full dict each call rather than mutating or `model_copy`-patching a
+  cached instance.
+
+**Formatting unified across all 9 test files** (was requested explicitly, so implemented directly rather than
+just advised): every file now uses the same `# =====...` divider style already established in
+`test_object_measurement.py`/`test_run_pipeline.py` - a `# Fixtures` divider before locally-defined fixtures
+(omitted in files with none), and a divider naming the function/class under test before each test group.
+Zero regressions - full suite (107 tests) passes before and after.
+
+### Questions to follow up on
+
+- The "flag wins" `use_default_model` precedence logic (design decided 2026-07-28, see `todo.txt` item 5) is
+  still not implemented in `utils.py` - `ModelBundle`/`_load_cellpose`/`_load_spotiflow_from_config` load
+  whatever path is configured unconditionally and never check the flag. Next config-related session should
+  pick this up before considering the migration fully closed.
+
 ## 2026-07-28 — Pydantic config migration: last open question resolved, starting implementation
 
 **Session goal:** pick up the pydantic config work scoped yesterday (see entry below). Recapped the design
@@ -109,6 +201,25 @@ default_model_true_with_path` is a legitimate, correct test - it just tests a na
 survives construction) than its name might suggest to a future reader (which model loads). Worth being
 precise about what a passing test actually proves versus what it sounds like it proves, especially when
 the interesting behavior lives one layer down (`utils.py`) from what's currently implemented (`config.py`).
+
+**Session closed out: `test_config.py` finished, 44 tests, full coverage of the schema** - `TestYAML`,
+`TestDefaultModelsLoadLogic`, `TestFieldConstraints`, `TestDefaults`, `TestPathValidation`,
+`TestRequiredFields`, `TestFrozen` (both nested-field mutation and top-level `PipelineConfig`
+reassignment). Built almost entirely by writing the tests myself with Claude reviewing each increment by
+actually running it, not just reading the diff - caught real bugs this way that a read-through alone
+wouldn't have: a `use_default_model=True` test that couldn't actually raise (wrong condition), a copy-paste
+bug deleting from the wrong section, a duplicate parametrize case pytest silently disambiguated with a
+`0`/`1` suffix, a combined multi-field assertion that would've silently masked a regression in any one of
+the three checks it bundled together, and a `result.section.field = x` typo that would've raised
+`AttributeError` instead of testing anything. Recurring lesson across most of these: pytest (or Python)
+often fails "successfully" in a way that looks like a normal test failure but is actually testing nothing
+or the wrong thing - the empty-`pass`-stub trap and the bundled-assertion masking risk are the same root
+issue in different shapes.
+
+**Next session: the call-site rewrite.** `config.py`/`config.yml`/`test_config.py` are done; `cli.py`,
+`utils.py` (including the still-unbuilt "flag wins" `use_default_model` logic), `run_pipeline.py`, and
+`qc_figures.py` all still access config via the old `config["section"]["key"]` dict pattern and need
+rewriting to `config.section.key`, per the build order in `todo.txt` item 5.
 
 ### Concepts learned
 

@@ -13,15 +13,6 @@ from spot_detector.run_pipeline import run_pipeline, _process_file, _process_sce
 
 
 @pytest.fixture
-def base_config():
-    return {
-        "channels": {"segmentation_image": 0, "spot_image": 1},
-        "segmentation": {"bin_factor": 4, "stitch_threshold": 0.4},
-        "detection": {"prob_thresh": 0.5, "min_distance": 10},
-    }
-
-
-@pytest.fixture
 def mock_img_2d(mocker: MockerFixture):
     """Fake BioImage with 2D dims, returning small synthetic stacks."""
     img = mocker.MagicMock()
@@ -44,7 +35,7 @@ def mock_models(mocker: MockerFixture):
 
 class TestProcessScene:
     def test_2d_calls_segment_2d(
-        self, mocker: MockerFixture, base_config, mock_img_2d, mock_models, tmp_path
+        self, mocker: MockerFixture, make_config, mock_img_2d, mock_models, tmp_path
     ):
         fake_masks = np.zeros((20, 20), dtype=int)
         fake_masks[5:10, 5:10] = 1
@@ -62,8 +53,7 @@ class TestProcessScene:
 
         result = _process_scene(
             img=mock_img_2d,
-            config=base_config,
-            do_3d=False,
+            config=make_config(mode={"do_3d": False}),
             models=mock_models,
             mode="2d",
             condition="Control",
@@ -78,7 +68,7 @@ class TestProcessScene:
         assert len(result) == 1
 
     def test_3d_calls_segment_3d_with_stitch_threshold(
-        self, mocker: MockerFixture, base_config, mock_models, tmp_path
+        self, mocker: MockerFixture, make_config, mock_models, tmp_path
     ):
         img = mocker.MagicMock()
         img.dims.order = "CZYX"
@@ -102,8 +92,7 @@ class TestProcessScene:
 
         result = _process_scene(
             img=img,
-            config=base_config,
-            do_3d=True,
+            config=make_config(mode={"do_3d": True}),
             models=mock_models,
             mode="3d",
             condition="Treated",
@@ -118,7 +107,7 @@ class TestProcessScene:
         assert result["Scene"].iloc[0] == 2
 
     def test_qc_figure_called_with_correct_path_and_condition(
-        self, mocker: MockerFixture, base_config, mock_img_2d, mock_models, tmp_path
+        self, mocker: MockerFixture, make_config, mock_img_2d, mock_models, tmp_path
     ):
         mocker.patch(
             "spot_detector.run_pipeline.segment_2d",
@@ -135,8 +124,7 @@ class TestProcessScene:
 
         _process_scene(
             img=mock_img_2d,
-            config=base_config,
-            do_3d=False,
+            config=make_config(mode={"do_3d": False}),
             models=mock_models,
             mode="2d",
             condition="Control",
@@ -152,7 +140,7 @@ class TestProcessScene:
         assert kwargs["condition"] == "Control"
 
     def test_passes_filepath_name_to_measure_objects(
-        self, mocker: MockerFixture, base_config, mock_img_2d, mock_models, tmp_path
+        self, mocker: MockerFixture, make_config, mock_img_2d, mock_models, tmp_path
     ):
         mocker.patch(
             "spot_detector.run_pipeline.segment_2d",
@@ -173,8 +161,7 @@ class TestProcessScene:
 
         _process_scene(
             img=mock_img_2d,
-            config=base_config,
-            do_3d=False,
+            config=make_config(mode={"do_3d": False}),
             models=mock_models,
             mode="2d",
             condition="Control",
@@ -195,7 +182,7 @@ class TestProcessScene:
 
 class TestProcessFile:
     def test_combines_multiple_scenes(
-        self, mocker: MockerFixture, base_config, mock_models, tmp_path
+        self, mocker: MockerFixture, make_config, mock_models, tmp_path
     ):
         mock_img_instance = mocker.MagicMock()
         mock_img_instance.scenes = ["scene0", "scene1"]
@@ -215,10 +202,9 @@ class TestProcessFile:
 
         result = _process_file(
             filepath=Path("Control_01.nd2"),
-            config=base_config,
+            config=make_config(mode={"do_3d": False}),
             models=mock_models,
             mode="2d",
-            do_3d=False,
             experiment="exp1",
             fig_dir=tmp_path,
             tab_dir=tmp_path,
@@ -232,7 +218,7 @@ class TestProcessFile:
         assert (tmp_path / "Control_objects_2D.csv").exists()
 
     def test_handles_corrupted_scene(
-        self, mocker: MockerFixture, base_config, mock_models, tmp_path
+        self, mocker: MockerFixture, make_config, mock_models, tmp_path
     ):
         mock_img_instance = mocker.MagicMock()
         mock_img_instance.scenes = ["scene0", "scene1", "scene2"]
@@ -253,10 +239,9 @@ class TestProcessFile:
 
         result = _process_file(
             filepath=Path("Control_01.nd2"),
-            config=base_config,
+            config=make_config(mode={"do_3d": False}),
             models=mock_models,
             mode="2d",
-            do_3d=False,
             experiment="exp1",
             fig_dir=tmp_path,
             tab_dir=tmp_path,
@@ -269,7 +254,7 @@ class TestProcessFile:
         assert failures[0]["Scene"] == 1
 
     def test_returns_none_when_no_scenes(
-        self, mocker: MockerFixture, base_config, mock_models, tmp_path
+        self, mocker: MockerFixture, make_config, mock_models, tmp_path
     ):
         mock_img_instance = mocker.MagicMock()
         mock_img_instance.scenes = []
@@ -279,10 +264,9 @@ class TestProcessFile:
 
         result = _process_file(
             filepath=Path("Control_01.nd2"),
-            config=base_config,
+            config=make_config(mode={"do_3d": False}),
             models=mock_models,
             mode="2d",
-            do_3d=False,
             experiment="exp1",
             fig_dir=tmp_path,
             tab_dir=tmp_path,
@@ -292,7 +276,7 @@ class TestProcessFile:
         assert result is None
 
     def test_derives_condition_from_filename(
-        self, mocker: MockerFixture, base_config, mock_models, tmp_path
+        self, mocker: MockerFixture, make_config, mock_models, tmp_path
     ):
         mock_img_instance = mocker.MagicMock()
         mock_img_instance.scenes = ["scene0"]
@@ -307,10 +291,9 @@ class TestProcessFile:
 
         _process_file(
             filepath=Path("Treated-DrugA_FOV3.nd2"),
-            config=base_config,
+            config=make_config(mode={"do_3d": False}),
             models=mock_models,
             mode="2d",
-            do_3d=False,
             experiment="exp1",
             fig_dir=tmp_path,
             tab_dir=tmp_path,
@@ -327,7 +310,7 @@ class TestProcessFile:
 
 class TestRunPipeline:
     def test_combines_multiple_files_and_derives_experiment_name(
-        self, mocker: MockerFixture, tmp_path
+        self, mocker: MockerFixture, make_config, tmp_path
     ):
         # layout: tmp_path / my_experiment / data / *.nd2
         project_root = tmp_path / "my_experiment"
@@ -337,10 +320,10 @@ class TestRunPipeline:
         (data_dir / "Treated_01.nd2").touch()
 
         out_dir = project_root / "output"
-        config = {
-            "mode": {"do_3d": False},
-            "paths": {"raw_data_dir": str(data_dir), "out_dir": str(out_dir)},
-        }
+        config = make_config(
+            mode={"do_3d": False},
+            paths={"raw_data_dir": str(data_dir), "out_dir": str(out_dir)},
+        )
 
         mocker.patch(
             "spot_detector.run_pipeline.ModelBundle.load",
@@ -366,7 +349,7 @@ class TestRunPipeline:
         assert mock_run_summary.call_args[1]["experiment"] == "my_experiment"
         assert (out_dir / "tables" / "_run_objects_2D.csv").exists()
 
-    def test_handles_corrupted_file(self, mocker: MockerFixture, tmp_path):
+    def test_handles_corrupted_file(self, mocker: MockerFixture, make_config, tmp_path):
         # layout: tmp_path / my_experiment / data / *.nd2
         project_root = tmp_path / "my_experiment"
         data_dir = project_root / "data"
@@ -376,10 +359,10 @@ class TestRunPipeline:
         (data_dir / "Treated_01.nd2").touch()
 
         out_dir = project_root / "output"
-        config = {
-            "mode": {"do_3d": False},
-            "paths": {"raw_data_dir": str(data_dir), "out_dir": str(out_dir)},
-        }
+        config = make_config(
+            mode={"do_3d": False},
+            paths={"raw_data_dir": str(data_dir), "out_dir": str(out_dir)},
+        )
 
         mocker.patch(
             "spot_detector.run_pipeline.ModelBundle.load",
@@ -416,19 +399,20 @@ class TestRunPipeline:
         assert failures_df["Error_Type"].iloc[0] == "Exception"
 
     def test_returns_none_with_no_files_processed(
-        self, mocker: MockerFixture, tmp_path
+        self, mocker: MockerFixture, make_config, tmp_path
     ):
         project_root = tmp_path / "empty_experiment"
         data_dir = project_root / "data"
         data_dir.mkdir(parents=True)  # empty folder
 
-        config = {
-            "mode": {"do_3d": False},
-            "paths": {
+        config = make_config(
+            mode={"do_3d": False},
+            paths={
                 "raw_data_dir": str(data_dir),
                 "out_dir": str(project_root / "output"),
             },
-        }
+        )
+
         mocker.patch(
             "spot_detector.run_pipeline.ModelBundle.load",
             return_value=mocker.MagicMock(),
@@ -438,16 +422,19 @@ class TestRunPipeline:
 
         assert result is None
 
-    def test_creates_output_directories(self, mocker: MockerFixture, tmp_path):
+    def test_creates_output_directories(
+        self, mocker: MockerFixture, make_config, tmp_path
+    ):
         project_root = tmp_path / "exp"
         data_dir = project_root / "data"
         data_dir.mkdir(parents=True)
 
         out_dir = project_root / "output"
-        config = {
-            "mode": {"do_3d": False},
-            "paths": {"raw_data_dir": str(data_dir), "out_dir": str(out_dir)},
-        }
+        config = make_config(
+            mode={"do_3d": False},
+            paths={"raw_data_dir": str(data_dir), "out_dir": str(out_dir)},
+        )
+
         mocker.patch(
             "spot_detector.run_pipeline.ModelBundle.load",
             return_value=mocker.MagicMock(),

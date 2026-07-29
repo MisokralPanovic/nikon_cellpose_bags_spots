@@ -3,14 +3,21 @@ from pytest_mock import MockerFixture
 
 from spot_detector.cli import main
 
+# =====================================================================
+# main()
+# =====================================================================
 
-def test_main_loads_config_and_calls_run_pipeline(mocker: MockerFixture, tmp_path):
+
+def test_main_loads_config_and_calls_run_pipeline(
+    mocker: MockerFixture, make_config, tmp_path
+):
     config_file = tmp_path / "config.yml"
-    config_file.write_text("mode:\n  do_3d: false\npaths:\n  out_dir: output\n")
+    config_file.touch()
+    config = make_config()
 
     mock_load_config = mocker.patch(
         "spot_detector.cli.load_config",
-        return_value={"mode": {"do_3d": False}, "paths": {"out_dir": "output"}},
+        return_value=config,
     )
     mocker.patch("spot_detector.cli.configure_logging")
     mock_run_pipeline = mocker.patch("spot_detector.cli.run_pipeline")
@@ -19,9 +26,7 @@ def test_main_loads_config_and_calls_run_pipeline(mocker: MockerFixture, tmp_pat
     main()
 
     mock_load_config.assert_called_once_with(config_file)
-    mock_run_pipeline.assert_called_once_with(
-        config={"mode": {"do_3d": False}, "paths": {"out_dir": "output"}}
-    )
+    mock_run_pipeline.assert_called_once_with(config=config)
 
 
 def test_main_requires_config_path_argument(mocker: MockerFixture):

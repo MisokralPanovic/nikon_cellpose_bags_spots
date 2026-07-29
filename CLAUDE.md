@@ -61,20 +61,25 @@ Key modules under `src/spot_detector/`:
 - `config.py` — YAML loader validated via pydantic. `load_config` returns a `PipelineConfig` (not a plain
   dict), built from nested `BaseModel`s (`ModeConfig`, `PathsConfig`, `ChannelConfig`, `SegmentationConfig`,
   `DetectionConfig`), all frozen (`model_config = ConfigDict(frozen=True)`) since nothing downstream should
-  mutate config after load. Migration in progress (started 2026-07-28, full history/decisions in `todo.txt`
-  item 5): `config.py` itself is done, but call sites elsewhere (`cli.py`, `run_pipeline.py`, `utils.py`,
-  `qc_figures.py`) still use dict-style `config["section"]["key"]` access pending rewrite to
-  `config.section.key`. Two further schema changes are agreed but not yet coded: moving
-  `cellpose_models_path`/`spotiflow_models_path` out of `PathsConfig` and into `SegmentationConfig`/
-  `DetectionConfig` respectively (co-locating each model's path with that model's other settings), each
-  paired with a new `use_default_model: bool = False` flag and a local `@model_validator` requiring the path
-  to be set unless the flag opts into a pretrained default.
+  mutate config after load. Pydantic migration (started 2026-07-28, full history/decisions in `todo.txt`
+  item 5) is DONE as of 2026-07-29: every call site (`cli.py`, `run_pipeline.py`, `utils.py`, `qc_figures.py`)
+  uses real attribute access (`config.section.key`), no dict-style `config["section"]["key"]` lookups remain
+  anywhere in `src/`. `cellpose_model_path`/`spotiflow_model_path` (singular, renamed) live in
+  `SegmentationConfig`/`DetectionConfig` respectively (co-located with each model's other settings; typed
+  `FilePath`/`DirectoryPath` respectively — Cellpose-SAM's checkpoint is a single file, Spotiflow's is a
+  folder), each paired with a `use_default_model: bool = False` flag and a local `@model_validator`
+  requiring the path to be set unless the flag opts into a pretrained default. NOT yet implemented: the
+  "flag wins" precedence logic itself — `ModelBundle`/`utils.py` still load whatever path is configured
+  unconditionally and never check `use_default_model`, so a config with both a path set AND
+  `use_default_model: true` does not yet fall back to the pretrained model as designed (see `todo.txt`
+  item 5 for the tracked follow-up).
 - `utils.py` — `parse_condition_from_name` (strips a trailing `_<token><digits>` suffix from filenames to derive
   the experimental condition, e.g. `Treated-DrugA_FOV3` -> `Treated-DrugA`), and `ModelBundle`, a dataclass that
-  loads + validates both models together. `ModelBundle.load()` is the only way to construct it. Spotiflow loading
-  has a fallback chain: try the custom model path from config -> if load fails or the model's dimensionality
-  (`model.config.is_3d`) doesn't match the pipeline's `do_3d` mode, fall back to a pretrained model
-  (`synth_complex` for 2D, `smfish_3d` for 3D).
+  loads + validates both models together. `ModelBundle.load(config)` is the only way to construct it — takes
+  just the `PipelineConfig`, no separate `do_3d` argument (dropped once `config.mode.do_3d` was available
+  everywhere internally). Spotiflow loading has a fallback chain: try the custom model path from config -> if
+  load fails or the model's dimensionality (`model.config.is_3d`) doesn't match the pipeline's `do_3d` mode,
+  fall back to a pretrained model (`synth_complex` for 2D, `smfish_3d` for 3D).
 - `segmentation_detection.py` — the actual CV/ML calls. 2D segmentation runs Cellpose on a stdev-projection of the
   z-stack; 3D segmentation runs Cellpose per-plane on a min-subtracted stack and stitches with `stitch_threshold`.
   Both downscale by `segmentation.bin_factor` before inference and upscale masks back, then strip edge-touching
@@ -91,16 +96,18 @@ Key modules under `src/spot_detector/`:
   `make_run_summary_figure` (whole run).
 
 Config schema (`configs/config.yml`, validated by `config.py`'s `PipelineConfig`): `mode.do_3d`,
-`paths.{raw_data_dir,out_dir,cellpose_models_path,spotiflow_models_path}`, `channels.{segmentation_image,
-spot_image}` (channel indices into the raw image — `channels.misc` was dropped, confirmed zero references in
-`src/`), `segmentation.{use_gpu,bin_factor,stitch_threshold}`, `detection.{prob_thresh,min_distance}`.
-`raw_data_dir`/`cellpose_models_path`/`spotiflow_models_path` are pydantic `DirectoryPath` (fails fast at
-config-load time if the directory doesn't exist, instead of failing confusingly deep inside
-`ModelBundle.load()`/`BioImage()` later); `out_dir` is a plain `Path` since the pipeline creates it via
-`mkdir`. Model paths point outside the repo (`../_pipeline_assets/...`) — they're expected to exist in a
-sibling directory on the machine running the pipeline, not to be committed here. This structure is
-mid-restructure — see the `config.py` bullet above for the planned move of the two model paths into
-`segmentation`/`detection`.
+`paths.{raw_data_dir,out_dir}`, `channels.{segmentation_image,spot_image}` (channel indices into the raw
+image — `channels.misc` was dropped, confirmed zero references in `src/`),
+`segmentation.{use_default_model,cellpose_model_path,use_gpu,bin_factor,stitch_threshold}`,
+`detection.{use_default_model,spotiflow_model_path,prob_thresh,min_distance}`. `raw_data_dir` and
+`spotiflow_model_path` are pydantic `DirectoryPath`; `cellpose_model_path` is `FilePath` (Cellpose-SAM's
+checkpoint is a single ~1.2GB file, not a folder, unlike Spotiflow's) — both fail fast at config-load time
+if the path doesn't exist or is the wrong kind, instead of failing confusingly deep inside
+`ModelBundle.load()`/`BioImage()` later. `out_dir` is a plain `Path` since the pipeline creates it via
+`mkdir`. Both model paths are `Optional[...] = None`, required unless their section's `use_default_model`
+flag is `true` (enforced by a local `@model_validator` in each of `SegmentationConfig`/`DetectionConfig`).
+Model paths point outside the repo (`../_pipeline_assets/...`) — they're expected to exist in a sibling
+directory on the machine running the pipeline, not to be committed here.
 
 Output layout: `output/tables/{condition}_objects_{mode}.csv` and `output/tables/_run_objects_{mode}.csv` (rows
 are one segmented object each), plus matching PNGs under `output/figures/`.
@@ -119,7 +126,17 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.). `conftest.py` currently has no shared fixtures.
-Tests mock heavy ML dependencies (Cellpose/Spotiflow model calls) via `pytest-mock` rather than loading real models
-or real microscopy files — keep new tests fast and offline. Several test files are currently empty stubs
-(`test_detection.py`, `test_model_bundle.py`, `test_run_pipeline.py`) awaiting coverage.
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 107 tests total as of 2026-07-29. Tests
+mock heavy ML dependencies (Cellpose/Spotiflow model calls) via `pytest-mock` rather than loading real models
+or real microscopy files — keep new tests fast and offline.
+
+`conftest.py` holds two shared factory fixtures, deliberately kept minimal: `make_config(**overrides)` builds
+a real, validated `PipelineConfig` backed by real tmp_path files/dirs (so pydantic's `FilePath`/`DirectoryPath`
+validators actually run), merging `**overrides` into a valid base dict — since `PipelineConfig` is frozen,
+tests needing a different value (e.g. `mode.do_3d`) must call `make_config(mode={"do_3d": True})` to get a
+new instance rather than mutate a shared one. `make_stack(shape)` returns a random `float32` array of the
+given shape. Both were hoisted here specifically because their *implementation* (not just fixture name) was
+identical across files. Several other same-named fixtures across test files (`base_params` in
+`test_detection.py` vs `test_object_measurement.py`) look like duplicates but aren't — different call
+signatures for different functions under test — and were deliberately left local rather than merged; check a
+fixture's body, not just its name, before assuming it's safe to hoist into `conftest.py`.

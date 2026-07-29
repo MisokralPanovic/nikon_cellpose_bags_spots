@@ -1,6 +1,10 @@
 import pytest
 from spot_detector.utils import parse_condition_from_name
 
+# =====================================================================
+# parse_condition_from_name
+# =====================================================================
+
 
 @pytest.mark.parametrize(
     "filename, stem",

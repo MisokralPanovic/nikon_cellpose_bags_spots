@@ -6,6 +6,7 @@ import logging
 from tqdm.auto import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from spot_detector.config import PipelineConfig
 from spot_detector.utils import parse_condition_from_name, ModelBundle
 from spot_detector.segmentation_detection import (
     segment_2d,
@@ -23,7 +24,7 @@ from spot_detector.qc_figures import (
 logger = logging.getLogger(__name__)
 
 
-def run_pipeline(config: dict) -> pd.DataFrame | None:
+def run_pipeline(config: PipelineConfig) -> pd.DataFrame | None:
     """Run the full segmentation + spot detection pipeline.
 
     Args:
@@ -33,13 +34,13 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
         pd.DataFrame | None: Combined run-level results, or None if no files processed.
     """
     # define dim mode
-    do_3d = config["mode"]["do_3d"]
+    do_3d = config.mode.do_3d
     mode = "3d" if do_3d else "2d"
 
     # establish folder structure
-    data_folder = Path(config["paths"]["raw_data_dir"]).resolve()
+    data_folder = Path(config.paths.raw_data_dir).resolve()
     experiment = data_folder.parent.name
-    out_dir = Path(config["paths"]["out_dir"])
+    out_dir = Path(config.paths.out_dir)
     fig_dir = out_dir / "figures"
     tab_dir = out_dir / "tables"
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -48,7 +49,7 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
     logger.info(f"=== Pipeline starting | mode={mode.upper()} ===")
     logger.info(f"Data folder: {data_folder}")
 
-    models = ModelBundle.load(config=config, do_3d=do_3d)
+    models = ModelBundle.load(config=config)
 
     all_run_records = []
     failures = []
@@ -62,7 +63,6 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
                 config=config,
                 models=models,
                 mode=mode,
-                do_3d=do_3d,
                 experiment=experiment,
                 fig_dir=fig_dir,
                 tab_dir=tab_dir,
@@ -113,10 +113,9 @@ def run_pipeline(config: dict) -> pd.DataFrame | None:
 
 def _process_file(
     filepath: Path,
-    config: dict,
+    config: PipelineConfig,
     models: ModelBundle,
     mode: str,
-    do_3d: bool,
     experiment: str,
     fig_dir: Path,
     tab_dir: Path,
@@ -146,7 +145,6 @@ def _process_file(
                     config=config,
                     models=models,
                     mode=mode,
-                    do_3d=do_3d,
                     experiment=experiment,
                     fig_dir=fig_dir,
                 )
@@ -189,8 +187,7 @@ def _process_file(
 def _process_scene(
     img: BioImage,
     *,
-    config: dict,
-    do_3d: bool,
+    config: PipelineConfig,
     models: ModelBundle,
     mode: str,
     condition: str,
@@ -202,28 +199,28 @@ def _process_scene(
     """Process a single scene: segment, detect, measure, and produce QC figure."""
     dim_order = "YX" if "Z" not in img.dims.order else "ZYX"
     objects_stack = img.get_image_data(
-        dim_order, C=config["channels"]["segmentation_image"]
+        dim_order, C=config.channels.segmentation_image
     ).astype(np.float32)
-    spots_stack = img.get_image_data(
-        dim_order, C=config["channels"]["spot_image"]
-    ).astype(np.float32)
+    spots_stack = img.get_image_data(dim_order, C=config.channels.spot_image).astype(
+        np.float32
+    )
 
     dx = img.physical_pixel_sizes.X or 1.0
     dz = img.physical_pixel_sizes.Z or 1.0
 
     logger.debug(f"Segmenting ({mode.upper()})...")
-    if do_3d:
+    if config.mode.do_3d:
         masks = segment_3d(
             bf_stack=objects_stack,
             model_cellpose=models.cellpose,
-            factor=config["segmentation"]["bin_factor"],
-            stitch_threshold=config["segmentation"]["stitch_threshold"],
+            factor=config.segmentation.bin_factor,
+            stitch_threshold=config.segmentation.stitch_threshold,
         )
     else:
         masks = segment_2d(
             bf_stack=objects_stack,
             model_cellpose=models.cellpose,
-            factor=config["segmentation"]["bin_factor"],
+            factor=config.segmentation.bin_factor,
         )
 
     n_obj = len(np.unique(masks)) - 1
@@ -233,9 +230,9 @@ def _process_scene(
     points, details = detect_spots_spotiflow(
         spot_stack=spots_stack,
         model_spotiflow=models.spotiflow,
-        prob_thresh=config["detection"]["prob_thresh"],
-        min_distance=config["detection"]["min_distance"],
-        do_3d=do_3d,
+        prob_thresh=config.detection.prob_thresh,
+        min_distance=config.detection.min_distance,
+        do_3d=config.mode.do_3d,
     )
     spot_labels = assign_spots_to_mask(coordinates=points, masks=masks)
     logger.info(f"Detected {len(points)} spot(s), {(spot_labels > 0).sum()} assigned")
