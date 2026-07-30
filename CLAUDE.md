@@ -20,6 +20,11 @@ in `src/bash_scripts/` and are legacy/not the current workflow).
 # install/sync environment
 uv sync
 
+# one-time per clone: wire up git hooks (uv sync does NOT do this - .git/hooks/ is
+# local to each clone and untracked, so nothing triggers it automatically)
+uv run pre-commit install
+uv run pre-commit install --hook-type pre-push
+
 # run the pipeline against a config file
 uv run spot-detector configs/config.yml
 # equivalently
@@ -33,8 +38,17 @@ uv run pytest tests/test_segmentation.py
 uv run pytest tests/test_segmentation.py::TestSegment3D::test_output_shape -v
 ```
 
-There is no configured linter (no ruff/flake8 config in `pyproject.toml`); `.ruff_cache/` is present locally but
-not wired into any command in this repo.
+Ruff is configured (`[tool.ruff]`/`[tool.ruff.lint]` in `pyproject.toml`, `target-version = "py312"`,
+`select = ["E", "F", "W", "I", "UP", "B", "RUF"]`, `ignore = ["E501"]` - line-length not enforced since
+`ruff-format` already wraps real code sensibly and manual E501 fixups on long docstrings/log strings aren't
+worth the friction) and wired into a pre-commit hook (`.pre-commit-config.yaml`): `ruff-check --fix` and
+`ruff-format` run automatically on every commit (`git commit`). A local `pytest` hook (added 2026-07-30,
+`language: system` since it just invokes `uv run pytest` in the existing environment rather than a separate
+pip-installable hook package) runs the full suite, but only at the `pre-push` stage (`git push`), not on every
+commit - deliberately split from the fast ruff checks since there's no CI in this repo (`.github/workflows/`
+doesn't exist) and the full suite takes ~7s, too slow to tax every single local commit but still worth
+gating before code leaves the machine. Requires `uv run pre-commit install --hook-type pre-push` once
+(in addition to the default `pre-commit install`) for the `pre-push` stage to actually be installed.
 
 ## Architecture
 

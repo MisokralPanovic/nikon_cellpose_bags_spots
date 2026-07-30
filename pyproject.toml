@@ -42,6 +42,10 @@ testpaths = ["tests"]
 [tool.ruff]
 target-version = "py312"
 
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "RUF"]
+ignore = ["E501"]
+
 [project.optional-dependencies]
 test = ["pytest", "pytest-mock"]
 

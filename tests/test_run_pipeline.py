@@ -1,11 +1,13 @@
-import pytest
-from pytest_mock import MockerFixture
-import numpy as np
-import pandas as pd
 from pathlib import Path
 from types import SimpleNamespace
 
-from spot_detector.run_pipeline import run_pipeline, _process_file, _process_scene
+import numpy as np
+import pandas as pd
+import pytest
+from pytest_mock import MockerFixture
+
+from spot_detector.exceptions import FatalPipelineError
+from spot_detector.run_pipeline import _process_file, _process_scene, run_pipeline
 
 # =====================================================================
 # Fixtures
@@ -253,6 +255,36 @@ class TestProcessFile:
         assert len(result) == 2
         assert failures[0]["Scene"] == 1
 
+    def test_fatal_error_propagates_and_aborts_file(
+        self, mocker: MockerFixture, make_config, mock_models, tmp_path
+    ):
+        mock_img_instance = mocker.MagicMock()
+        mock_img_instance.scenes = ["scene0", "scene1", "scene2"]
+        mocker.patch(
+            "spot_detector.run_pipeline.BioImage", return_value=mock_img_instance
+        )
+
+        df_scene0 = pd.DataFrame({"Object_Label": [1], "Scene": [0]})
+        mocker.patch(
+            "spot_detector.run_pipeline._process_scene",
+            side_effect=[df_scene0, FatalPipelineError("boom"), pd.DataFrame()],
+        )
+
+        mocker.patch("spot_detector.run_pipeline.make_scene_summary_figure")
+        failures = []
+
+        with pytest.raises(FatalPipelineError):
+            _process_file(
+                filepath=Path("Control_01.nd2"),
+                config=make_config(mode={"do_3d": False}),
+                models=mock_models,
+                mode="2d",
+                experiment="exp1",
+                fig_dir=tmp_path,
+                tab_dir=tmp_path,
+                failures=failures,
+            )
+
     def test_returns_none_when_no_scenes(
         self, mocker: MockerFixture, make_config, mock_models, tmp_path
     ):
@@ -397,6 +429,38 @@ class TestRunPipeline:
         }
         assert failures_df["Error"].iloc[0] == "boom"
         assert failures_df["Error_Type"].iloc[0] == "Exception"
+
+    def test_fatal_error_propagates_and_aborts_run(
+        self, mocker: MockerFixture, make_config, tmp_path
+    ):
+        project_root = tmp_path / "my_experiment"
+        data_dir = project_root / "data"
+        data_dir.mkdir(parents=True)
+        (data_dir / "Control_01.nd2").touch()
+        (data_dir / "Treated_01.nd2").touch()
+
+        out_dir = project_root / "output"
+        config = make_config(
+            mode={"do_3d": False},
+            paths={"raw_data_dir": str(data_dir), "out_dir": str(out_dir)},
+        )
+        mocker.patch(
+            "spot_detector.run_pipeline.ModelBundle.load",
+            return_value=mocker.MagicMock(),
+        )
+
+        df_a = pd.DataFrame({"Object_Label": [1], "Condition": ["Control"]})
+        mock_process_file = mocker.patch(
+            "spot_detector.run_pipeline._process_file",
+            side_effect=[df_a, FatalPipelineError("boom")],
+        )
+
+        with pytest.raises(FatalPipelineError):
+            run_pipeline(config=config)
+
+        assert mock_process_file.call_count == 2
+        assert not (out_dir / "tables" / "_run_failures_2D.csv").exists()
+        assert not (out_dir / "tables" / "_run_objects_2D.csv").exists()
 
     def test_returns_none_with_no_files_processed(
         self, mocker: MockerFixture, make_config, tmp_path

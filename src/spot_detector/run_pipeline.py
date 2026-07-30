@@ -1,25 +1,27 @@
-from bioio import BioImage
+import logging
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-import logging
+from bioio import BioImage
 from tqdm.auto import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from spot_detector.config import PipelineConfig
-from spot_detector.utils import parse_condition_from_name, ModelBundle
-from spot_detector.segmentation_detection import (
-    segment_2d,
-    segment_3d,
-    detect_spots_spotiflow,
-    assign_spots_to_mask,
-)
+from spot_detector.exceptions import FatalPipelineError
 from spot_detector.obejct_measurement import measure_objects
 from spot_detector.qc_figures import (
+    make_qc_figure,
     make_run_summary_figure,
     make_scene_summary_figure,
-    make_qc_figure,
 )
+from spot_detector.segmentation_detection import (
+    assign_spots_to_mask,
+    detect_spots_spotiflow,
+    segment_2d,
+    segment_3d,
+)
+from spot_detector.utils import ModelBundle, parse_condition_from_name
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,8 @@ def run_pipeline(config: PipelineConfig) -> pd.DataFrame | None:
             if scene_df is not None:
                 all_run_records.append(scene_df)
 
+        except FatalPipelineError:
+            raise
         except Exception as e:
             logger.exception(f"Processing file {filepath.name} failed ({e}), skipping")
             failures.append(
@@ -151,6 +155,8 @@ def _process_file(
                 if scene_df is not None:
                     all_scene_records.append(scene_df)
 
+            except FatalPipelineError:
+                raise
             except Exception as e:
                 logger.exception(
                     f"Scene {scene} on {filepath.name} ({condition}) failed ({e}), skipping"
@@ -162,7 +168,7 @@ def _process_file(
                         "Condition": condition,
                         "Scene": scene,
                         "Error": str(e),
-                        "Error Type": type(e).__name__,
+                        "Error_Type": type(e).__name__,
                     }
                 )
 
@@ -234,6 +240,7 @@ def _process_scene(
         min_distance=config.detection.min_distance,
         do_3d=config.mode.do_3d,
     )
+
     spot_labels = assign_spots_to_mask(coordinates=points, masks=masks)
     logger.info(f"Detected {len(points)} spot(s), {(spot_labels > 0).sum()} assigned")
 

@@ -5,6 +5,102 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-07-30 (cont'd, part 2) — Exception taxonomy implemented and tested (QC resilience still pending)
+
+**Session goal:** implement the exception-hierarchy half of the design from earlier today (see the
+brainstorming entry below). I wrote the code myself; Claude reviewed each file as I went.
+
+- **A design decision made during brainstorming can turn out wrong once you actually write the code, and
+  that's fine to reverse.** The agreed design had `DimensionMismatchError(FatalPipelineError, ValueError)` -
+  multiple inheritance, specifically to keep the existing `test_dimension_mismatch_raises` (`pytest.raises
+  (ValueError)`) passing unchanged. Implementing it, realized: nothing else in the codebase catches bare
+  `ValueError` around `assign_spots_to_mask` - the only caller is `_process_scene`, which is already
+  exception-transparent (no local try/except at all). So the backward-compat reason for the dual inheritance
+  didn't actually apply to anything real. Went with single inheritance instead and just updated the one test
+  to `pytest.raises(DimensionMismatchError)` - simpler hierarchy, and the test now documents what the function
+  actually raises rather than a compatibility shim for a case that doesn't exist. Recorded as a deliberate
+  reversal in todo.txt, not silently overwriting what the design doc said.
+- **`_process_scene` needed zero changes for the fail-fast behavior.** Initially assumed the new exception
+  needed to be raised or handled somewhere in `_process_scene` itself. It doesn't - `assign_spots_to_mask` is
+  the only place that detects the mismatch, so it's the only place that raises; `_process_scene` has no
+  try/except around that call (matches the established "helpers stay exception-transparent" convention), so
+  whatever exception type comes out already propagates through it untouched, all the way to `_process_file`'s
+  catch site. The only code that needed to change was the two actual catch sites in `run_pipeline.py`
+  (`except FatalPipelineError: raise` added before each `except Exception`) plus the one `raise` statement
+  inside `assign_spots_to_mask` itself.
+- **`unittest.mock`'s `side_effect` list raises exception items automatically - no separate "declare this
+  raises" step exists.** When `side_effect` is a list and an item is an exception class or instance, the mock
+  raises it on that call instead of returning it; this is stdlib `unittest.mock` behavior (verified directly:
+  a bare `MagicMock(side_effect=['ok', ValueError('boom'), 'ok again'])` raises on the middle call, returns
+  normally on the other two). Used this to test the fail-fast behavior without needing any pipeline code to
+  actually run: `mocker.patch(..., side_effect=[df_scene0, FatalPipelineError("boom"), pd.DataFrame()])`
+  raises on the second call, letting the test assert on `_process_file`'s real `except FatalPipelineError:
+  raise` handling exactly as it would with a genuine dimension-mismatch failure, without needing real image
+  data.
+- **Testing "it propagates" is a different, and stronger, claim than "it raises somewhere."** The two new
+  tests (`TestProcessFile.test_fatal_error_propagates_and_aborts_file`,
+  `TestRunPipeline.test_fatal_error_propagates_and_aborts_run`) both assert `mock_process_scene`/
+  `mock_process_file.call_count` stops exactly where the fatal error was raised (2, not 3) - proving the loop
+  actually aborts immediately rather than continuing to the next item and merely re-raising something at the
+  end. A bare `pytest.raises(...)` alone wouldn't have distinguished "stopped immediately" from "kept going
+  and something raised later anyway."
+
+**Result:** exception-taxonomy half of the design (schema, `assign_spots_to_mask`, both `run_pipeline.py`
+catch sites, tests) is done - 115 tests total (up from 113). QC-figure-resilience half (panel/figure-level
+wrapping in `qc_figures.py`) is still unimplemented - next target, alongside item 4's `test_qc_figures.py`.
+
+## 2026-07-30 (cont'd) — Error taxonomy + QC figure resilience designed (brainstormed, not yet implemented)
+
+**Session goal:** with the config migration closed, picked up the two longest-open items - todo.txt item 1's
+undecided catch+skip-vs-fail-fast question, and item 4's qc_figures.py test-coverage gap - since they turned
+out to fit together (item 1's QC-figure fix touches the exact module item 4 needs tests for). Used the
+brainstorming skill's process (explore -> clarifying questions -> propose -> present design section by
+section -> get approval) rather than jumping straight to an implementation. Per standing project preference,
+the agreed design was recorded in `todo.txt` (item 1 + item 4) and here, not as a new `docs/superpowers/
+specs/*.md` file.
+
+- **"What's the norm in the field" is answerable, and it's usually a known pattern, not a from-scratch
+  judgment call.** The operational-vs-programmer-error split was already informally present in this
+  project's own 2026-07-15 notes; what was missing was the concrete mechanism (a real exception hierarchy +
+  a "let this one type propagate" rule at the catch sites) rather than a bare `except Exception` everywhere.
+  Reached for the standard single-root exception hierarchy pattern used across the Python ecosystem
+  (`requests.exceptions.RequestException`, `django.core.exceptions`, etc.) rather than inventing a bespoke
+  scheme - `SpotDetectorError` -> `FatalPipelineError` -> `DimensionMismatchError`.
+- **Multiple inheritance can bridge "this fits an existing check" and "this fits a new one" without breaking
+  either.** `DimensionMismatchError(FatalPipelineError, ValueError)` lets `assign_spots_to_mask` raise
+  something that's simultaneously (a) a genuine `ValueError` (bad argument value - a dimension mismatch truly
+  is one), so the existing `test_dimension_mismatch_raises` test (`pytest.raises(ValueError)`) keeps passing
+  unchanged, and (b) a `FatalPipelineError`, so `run_pipeline.py`'s catch sites can special-case it without
+  touching the existing `ValueError`-based contract at all. Avoided having to choose between "reuse the old
+  type" and "introduce the new one" by not treating those as mutually exclusive.
+- **Letting an exception propagate uncaught can be the correct fail-fast mechanism, not a gap to fill.**
+  Considered whether "abort the whole run" needed some explicit termination code in `cli.py` - it doesn't.
+  Once neither `run_pipeline.py` catch site catches `FatalPipelineError` (an explicit `except
+  FatalPipelineError: raise` before each `except Exception`), Python's own unhandled-exception behavior
+  (non-zero exit, full traceback) already delivers exactly "stop everything, loudly, with full context" -
+  building custom process-termination logic would have been solving an already-solved problem.
+- **A "nice to have" side effect failing shouldn't cost you output you already earned.** The QC figure
+  resilience design mirrors a common pattern from outside this domain (e.g., an analytics/metrics call
+  failing shouldn't fail the user-facing request it's attached to): `make_qc_figure()` is diagnostic tooling,
+  not the actual scientific deliverable (the CSV is), so its failure gets two independent safety nets (per
+  panel, and around the whole figure call) that both log-and-continue rather than propagating - and
+  deliberately does NOT get recorded in the `failures` list, since that list means "the scene's data is
+  missing," which isn't true here.
+- **Exploring the code before designing surfaced a real bug unrelated to the design questions.**
+  `_process_file`'s per-scene failure dict key is `"Error Type"` (space); `run_pipeline`'s per-file one is
+  `"Error_Type"` (underscore) - inconsistent, untested (no existing test checks that specific dict's keys),
+  and would silently produce two separate columns with gaps if both failure sources ever landed in the same
+  run's CSV. Folded into this same work as a bundled fix since it's directly adjacent to the code already
+  being touched, rather than filed as a separate item.
+- **When a user's answer overrides your own recommendation, the recorded design should still capture why
+  their choice was deliberate, not silently drop your caveat.** Recommended a single narrow exception class
+  for the one known case (YAGNI); the user chose the small hierarchy instead, anticipating future cases.
+  Recorded in `todo.txt` as "deliberately... not an oversight" rather than just writing the hierarchy down as
+  if it were the obviously-correct choice - keeps the tradeoff visible for whoever reads this later.
+
+**Result:** todo.txt items 1 and 4 both now carry a fully agreed, unimplemented design (marked NEXT SESSION /
+follow-on pass respectively) rather than an open question. Nothing coded yet - next session's job.
+
 ## 2026-07-30 — "Flag wins" use_default_model precedence implemented, config migration fully closed
 
 **Session goal:** implement the last open piece of `todo.txt` item 5 - the "flag wins" precedence logic

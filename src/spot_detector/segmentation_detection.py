@@ -1,9 +1,11 @@
-import numpy as np
-from skimage.measure import block_reduce
-from cellpose import models, utils
-from spotiflow.model import Spotiflow
-from typing import Tuple
 from types import SimpleNamespace
+
+import numpy as np
+from cellpose import models, utils
+from skimage.measure import block_reduce
+from spotiflow.model import Spotiflow
+
+from spot_detector.exceptions import DimensionMismatchError
 
 # =====================================================================
 # Segementation
@@ -89,7 +91,7 @@ def detect_spots_spotiflow(
     prob_thresh: float,
     min_distance: int,
     do_3d: bool,
-) -> Tuple[np.ndarray, SimpleNamespace]:
+) -> tuple[np.ndarray, SimpleNamespace]:
     """Detect spot-like features in an image using the default Spotiflow model.
 
     Args:
@@ -126,7 +128,7 @@ def assign_spots_to_mask(
         masks (np.ndarray): Numpy array of object masks from segmentation.
 
     Raises:
-        ValueError: If coordinates and masks dimentions are mismatched.
+        DimensionMismatchError: If coordinates and masks dimentions are mismatched.
 
     Returns:
         np.ndarray: A list of coordinates that falls within the non-zero masks, with object IDs.
@@ -151,6 +153,8 @@ def assign_spots_to_mask(
         return masks[zi, yi, xi]
 
     else:
-        raise ValueError(
-            f"Mismatch: coords have {ndim} dims but masks have {masks.ndim} dims."
+        raise DimensionMismatchError(
+            f"Mismatch: expected {ndim}D coordinates, got {masks.ndim}D.",
+            expected_ndim=ndim,
+            actual_ndim=masks.ndim,
         )

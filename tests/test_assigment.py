@@ -1,5 +1,7 @@
 import numpy as np
 import pytest
+
+from spot_detector.exceptions import DimensionMismatchError
 from spot_detector.segmentation_detection import assign_spots_to_mask
 
 # =====================================================================
@@ -54,5 +56,5 @@ def test_3d_assigment(simple_3d_mask):
 
 def test_dimension_mismatch_raises(simple_2d_mask):
     coords = np.array([[1, 5, 5]])
-    with pytest.raises(ValueError):
+    with pytest.raises(DimensionMismatchError):
         assign_spots_to_mask(coordinates=coords, masks=simple_2d_mask)

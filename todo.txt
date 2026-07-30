@@ -65,30 +65,88 @@ code quality audit (2026-07-15, via Claude, see LEARNING_NOTES.md for details):
 - test_cli.py updated to mock configure_logging (see item 2) - suite no longer leaks output/logs/*.log
   into the repo root on every run
 
-open, NOT yet fixed - deliberately deferred, not oversights:
-- decide: catch+skip for data/hardware errors vs fail-fast for config/programmer errors - STILL undecided;
-  both except blocks catch bare Exception uniformly. E.g. assign_spots_to_mask's dimension-mismatch
-  ValueError (do_3d disagrees with actual data) will fail identically on every scene - burns a full
-  inference pass per scene just to log the same error N times, instead of failing once, loudly.
-- make_qc_figure() is the last call in _process_scene, not separately guarded - if it fails (matplotlib
-  error, disk full mid-save), the whole scene is recorded as failed even though measure_objects already
-  produced a valid scene_df just above it. Consistent with the settled "no try/except below orchestration
-  layer" design, so not necessarily wrong - but a QC rendering hiccup currently costs real measurement
-  data, not just a missing PNG. Worth a conscious decision, not an oversight fix.
+DESIGNED 2026-07-30 (brainstormed with Claude, design agreed in chat - not yet implemented), closes both
+open items below at once:
 
-2. logging & observability   <- print() -> logger conversion done, 1 bug left
-- BUG (confirmed): configure_logging() is defined in cli.py but main() never calls it - goes straight from
-  load_config to run_pipeline, so no log file and no INFO+ on console yet on a real run. Fix: call
-  configure_logging(log_dir=Path(config["paths"]["out_dir"]) / "logs") in main(), before run_pipeline.
+- catch+skip (operational) vs fail-fast (programmer/invariant) exception taxonomy - RESOLVED. New module
+  src/spot_detector/exceptions.py, single-root hierarchy (standard Python ecosystem convention, cf.
+  requests.exceptions/django.core.exceptions):
+    SpotDetectorError(Exception)               - root for all exceptions this package defines intentionally
+      FatalPipelineError(SpotDetectorError)     - "this will recur identically on every item, never
+                                                   catch-and-continue, let it abort the run"
+        DimensionMismatchError(FatalPipelineError, ValueError)  - the one concrete case today: do_3d
+                                                   disagrees with actual data, raised by assign_spots_to_mask
+                                                   instead of a bare ValueError. Multiple-inherits ValueError
+                                                   too, so it's still semantically "a bad argument value" AND
+                                                   existing `except ValueError`-based code/tests (test_
+                                                   assigment.py's test_dimension_mismatch_raises) keep working
+                                                   unchanged.
+  Deliberately a small hierarchy, not just one narrow exception class for the single known case - chosen to
+  leave room for future fatal-error cases without redesigning the taxonomy again (tradeoff: more structure
+  than strictly needed for one case today, accepted deliberately, not an oversight).
+  Wiring: both catch sites in run_pipeline.py (the scene loop in _process_file, the file loop in
+  run_pipeline) get `except FatalPipelineError: raise` added BEFORE their existing `except Exception`, so a
+  fatal error is never caught-and-logged-and-continued at either level. Once uncaught, it propagates all the
+  way out of run_pipeline() and terminates the process via Python's normal unhandled-exception behavior
+  (non-zero exit, full traceback) - decided this aborts the WHOLE RUN immediately (not just the current
+  file), since the cause (do_3d, a run-wide config setting) would recur identically on every file/scene
+  anyway; no custom process-termination machinery needed, letting it propagate uncaught already does this.
+
+- make_qc_figure() discarding a valid scene_df on failure - RESOLVED, two-layer fix:
+    1. Panel-level (extends _panel_ecdf's existing "No Spots Detected" placeholder pattern to failures
+       generally): each of the 6 _panel_*(...) calls in make_qc_figure gets its own try/except - on failure,
+       log a warning (exc_info=True) and draw a placeholder (e.g. ax.text(..., "Panel unavailable", ...)) on
+       that panel's Axes instead of raising, then continue to the next panel.
+    2. Figure-level (outer safety net in _process_scene): the whole make_qc_figure(...) call site gets wrapped
+       - catches anything panel-level wrapping didn't (e.g. plt.savefig hitting a full disk), logs a warning,
+       does NOT re-raise. scene_df (already computed above) still returns and gets aggregated normally.
+       Deliberately NOT recorded in the failures list/CSV - that list means "this scene's DATA is missing";
+       here the data is fine, only the picture is degraded/missing, so a logger.warning is the right level of
+       visibility, not a failure record.
+    Both layers get `except FatalPipelineError: raise` before their catch-all too, for consistency with the
+    fail-fast rule above, even though a plotting function raising that type would be unusual.
+
+- incidental bug found while scoping this (adjacent code, fix bundled in): _process_file's per-scene failure
+  dict uses the key "Error Type" (space) while run_pipeline's per-file one uses "Error_Type" (underscore) -
+  untested inconsistency, would produce two separate columns with gaps if scene- and file-level failures
+  ever landed in the same run's failures CSV together.
+
+DONE 2026-07-30: the exception-taxonomy half is fully implemented and tested. src/spot_detector/exceptions.py
+added (SpotDetectorError -> FatalPipelineError -> DimensionMismatchError, single inheritance - NOT also
+ValueError; decided during implementation to update the one affected test instead of keeping a dual-inheritance
+backward-compat shim, since nothing else in the codebase caught bare ValueError around assign_spots_to_mask
+anyway). assign_spots_to_mask raises DimensionMismatchError (with expected_ndim/actual_ndim attributes via a
+custom __init__); its docstring updated to match. Both run_pipeline.py catch sites (_process_file's scene
+loop, run_pipeline's file loop) have `except FatalPipelineError: raise` before their `except Exception`. The
+Error_Type key fix (was "Error Type" with a space in _process_file) is in. Tests added: test_assigment.py's
+test_dimension_mismatch_raises now checks DimensionMismatchError; test_run_pipeline.py gained
+TestProcessFile.test_fatal_error_propagates_and_aborts_file and TestRunPipeline.test_fatal_error_propagates_
+and_aborts_run, both proving a FatalPipelineError raised deep in the call chain actually escapes uncaught
+(pytest.raises) rather than being caught-and-logged like an ordinary exception, and (the run-level one) that
+the loop stops immediately - call_count == 2, not 3, meaning the item after the fatal one is never attempted,
+and no run-level CSVs get written. 115 tests total (up from 113).
+
+STILL OPEN: the QC-figure-resilience half (qc_figures.py's panel/figure-level wrapping so a rendering failure
+doesn't discard an already-computed scene_df - see the DESIGNED 2026-07-30 section above for the full
+two-layer design) is NOT yet implemented. That, plus full test_qc_figures.py coverage, is item 4's job (see
+below) - next session's target.
+
+2. logging & observability   <- print() -> logger conversion done, all known items closed
+- DONE (confirmed still true 2026-07-30): configure_logging() is called from cli.py's main() before
+  run_pipeline (now configure_logging(log_dir=Path(config.paths.out_dir) / "logs"), updated to attribute
+  access by the item 5 config migration) - real log file + console INFO+ output on a real run.
 - mode.upper() in run_pipeline.py's output filenames (_run_objects_2D.csv etc.) is INTENTIONAL, not a bug -
-  update the 4 tests in test_run_pipeline.py that still assert lowercase (lines ~151, 231, 280, 327) to match
+  confirmed still true 2026-07-30: all assertions in test_run_pipeline.py already match (uppercase 2D/3D
+  throughout), no stale lowercase assertions remain.
 - DONE 2026-07-27: test_cli.py now mocks configure_logging - confirmed by running the suite twice and
   checking `git status`: before the fix, every run left an untracked output/logs/run_*.log in the repo
   root (real handlers attached to the root logger via the unmocked call); after, nothing leaks
 - record which config produced which output CSV - done (cli.py logs resolved config on load, once wired up)
 
 3. cluster / parallelization readiness
-- segmentation.use_gpu config flag is dead code, never read (utils.py hardcodes gpu=True)
+- DONE (confirmed still true 2026-07-30): segmentation.use_gpu is read - utils.py's _load_cellpose passes
+  gpu=config.segmentation.use_gpu to CellposeModel (fixed 2026-07-27, updated to attribute access by the
+  item 5 config migration). No longer dead/hardcoded.
 - no checkpointing/resume for interrupted runs - DEFERRED to the Snakemake migration (2026-07-27 discussion,
   see LEARNING_NOTES.md), not something to hand-build in run_pipeline.py now. Reasoning:
     - overnight-run crash resilience splits into two failure classes: catchable Python exceptions (CUDA
@@ -145,7 +203,16 @@ open, NOT yet fixed - deliberately deferred, not oversights:
      cluster request.
 
 4. testing coverage   <- reassessed 2026-07-15, mostly in good shape
-- only real gap: qc_figures.py (691 lines, largest module) has zero tests, no test_qc_figures.py exists
+- only real gap: qc_figures.py (691 lines, largest module) has zero tests, no test_qc_figures.py exists.
+  SCOPED 2026-07-30 alongside item 1 (brainstormed together since item 1's QC resilience fix touches this
+  exact module): new test_qc_figures.py should cover, in full - each of the 6 _panel_* functions (correct
+  plotting behavior + edge cases like has_spots=False), SpotData/ImageData's __post_init__ unit-conversion
+  logic, the three figure builders (make_qc_figure/make_scene_summary_figure/make_run_summary_figure)
+  end-to-end, PLUS the new panel-level/figure-level resilience behavior from item 1's design (a failing
+  panel gets a placeholder and doesn't crash the figure; a failing make_qc_figure call doesn't prevent
+  scene_df from returning). Explicitly chosen as full coverage in this pass, not just the new resilience
+  behavior, given the module's size and that it's never been touched - a bigger effort than item 1's own
+  implementation, worth treating as its own follow-on pass once item 1 lands.
 - everything else has real coverage: test_run_pipeline.py (12, real PipelineConfig fixtures as of 2026-07-29
   - see item 5), test_model_bundle.py (14 as of 2026-07-30, up from 8 - flag-wins precedence coverage added,
   see item 5), test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7),
