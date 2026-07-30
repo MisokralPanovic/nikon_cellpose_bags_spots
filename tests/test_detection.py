@@ -1,7 +1,9 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 from pytest_mock import MockerFixture
-from types import SimpleNamespace
+
 from spot_detector.segmentation_detection import detect_spots_spotiflow
 
 # =====================================================================

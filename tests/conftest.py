@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from spot_detector.config import PipelineConfig
 
 

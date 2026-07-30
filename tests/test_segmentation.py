@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from pytest_mock import MockerFixture
+
 from spot_detector.segmentation_detection import segment_2d, segment_3d
 
 # =====================================================================

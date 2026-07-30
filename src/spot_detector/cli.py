@@ -1,7 +1,7 @@
-from pathlib import Path
 import argparse
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from spot_detector.config import load_config
 from spot_detector.run_pipeline import run_pipeline

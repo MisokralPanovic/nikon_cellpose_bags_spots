@@ -1,14 +1,15 @@
-import yaml
 import pytest
-from spot_detector.config import (
-    load_config,
-    PathsConfig,
-    ChannelConfig,
-    SegmentationConfig,
-    DetectionConfig,
-    PipelineConfig,
-)
+import yaml
 from pydantic import ValidationError
+
+from spot_detector.config import (
+    ChannelConfig,
+    DetectionConfig,
+    PathsConfig,
+    PipelineConfig,
+    SegmentationConfig,
+    load_config,
+)
 
 # =====================================================================
 # Fixtures
@@ -77,7 +78,7 @@ class TestYAML:
         config_file = tmp_path / "bad_config.yml"
         config_file.write_text("paths: [unclosed\n  this is not valid: yaml:")
 
-        with pytest.raises(Exception):
+        with pytest.raises(yaml.YAMLError):
             load_config(config_file)
 
 

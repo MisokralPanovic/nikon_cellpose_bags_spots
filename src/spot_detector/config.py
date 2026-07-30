@@ -1,14 +1,15 @@
 from pathlib import Path
+from typing import Annotated
+
 import yaml
 from pydantic import (
     BaseModel,
+    ConfigDict,
     DirectoryPath,
     Field,
-    ConfigDict,
     FilePath,
     model_validator,
 )
-from typing import Annotated
 
 
 class ModeConfig(BaseModel):

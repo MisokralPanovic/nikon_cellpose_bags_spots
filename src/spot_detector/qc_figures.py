@@ -1,17 +1,17 @@
-from pathlib import Path
+import logging
 from dataclasses import dataclass, field
+from pathlib import Path
+from types import SimpleNamespace
+
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import logging
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-from matplotlib.axes import Axes
 import seaborn as sns
+from matplotlib.axes import Axes
+from matplotlib_scalebar.scalebar import ScaleBar
 from scipy.spatial import KDTree
 from scipy.stats import gaussian_kde
-from types import SimpleNamespace
-from matplotlib_scalebar.scalebar import ScaleBar
-
 
 from spot_detector.config import PipelineConfig
 
@@ -339,7 +339,7 @@ def _panel_flow(ax: Axes, flow_details: SimpleNamespace) -> None:
         ax.text(
             0.5,
             0.5,
-            f"Flow Render Error\n{str(e)}",
+            f"Flow Render Error\n{e!s}",
             ha="center",
             va="center",
             transform=ax.transAxes,
@@ -596,7 +596,7 @@ def make_qc_figure(
     dz: float,
     config: PipelineConfig,
 ) -> None:
-    """Generate a 2×3 panel QC figure for one scene.
+    """Generate a 2x3 panel QC figure for one scene.
 
     Panels:
         [0,0] StDev projection of segmentation channel + mask overlays

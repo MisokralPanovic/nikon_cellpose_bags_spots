@@ -1,8 +1,9 @@
+import logging
 import re
 from dataclasses import dataclass
+
 from cellpose import models
 from spotiflow.model import Spotiflow
-import logging
 
 from spot_detector.config import PipelineConfig
 

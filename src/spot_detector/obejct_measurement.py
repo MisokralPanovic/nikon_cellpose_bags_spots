@@ -1,6 +1,6 @@
-from skimage.measure import regionprops_table
-import pandas as pd
 import numpy as np
+import pandas as pd
+from skimage.measure import regionprops_table
 
 # =====================================================================
 # ROI Properties Calculation
@@ -55,7 +55,7 @@ def measure_objects(
         "centroid",
         "equivalent_diameter_area",
     ]
-    props_2d = props_3d + ["eccentricity"]
+    props_2d = [*props_3d, "eccentricity"]
 
     raw = pd.DataFrame(
         regionprops_table(masks, properties=props_3d if mode == "3d" else props_2d)
