@@ -40,7 +40,6 @@ class ModelBundle:
 
         Args:
             config (PipelineConfig): Pipeline config PipelineConfig object containing cellpose_model_path and spotiflow_model_path.
-            do_3d (bool): Whether the pipeline is running in 3D mode.
 
         Returns:
             ModelBundle: Validated ModelBundle.
@@ -51,11 +50,20 @@ class ModelBundle:
 
     @staticmethod
     def _load_cellpose(config: PipelineConfig) -> models.CellposeModel:
-        logger.debug("Loading Cellpose model...")
-        return models.CellposeModel(
-            gpu=config.segmentation.use_gpu,
-            pretrained_model=str(config.segmentation.cellpose_model_path),
-        )
+        if not config.segmentation.use_default_model:
+            logger.debug("Loading custom Cellpose model...")
+            return models.CellposeModel(
+                gpu=config.segmentation.use_gpu,
+                pretrained_model=str(config.segmentation.cellpose_model_path),
+            )
+
+        if config.segmentation.cellpose_model_path is not None:
+            logger.warning(
+                f"Ignoring cellpose_model_path ({config.segmentation.cellpose_model_path}) "
+                "since use_default_model is True"
+            )
+        logger.debug("Loading default Cellpose model...")
+        return models.CellposeModel(gpu=config.segmentation.use_gpu)
 
     @staticmethod
     def _load_spotiflow(config: PipelineConfig) -> Spotiflow:
@@ -67,19 +75,30 @@ class ModelBundle:
     @staticmethod
     def _load_spotiflow_from_config(config: PipelineConfig) -> Spotiflow:
         """Attempts to load Spotiflow model from config path, falling back to pretrained default on failure."""
-        try:
-            model = Spotiflow.from_folder(str(config.detection.spotiflow_model_path))
-            logger.info(
-                f"Loaded custom Spotiflow model from: {config.detection.spotiflow_model_path}"
-            )
-            return model
-        except Exception as e:
-            fallback = "smfish_3d" if config.mode.do_3d else "synth_complex"
+        if not config.detection.use_default_model:
+            try:
+                model = Spotiflow.from_folder(
+                    str(config.detection.spotiflow_model_path)
+                )
+                logger.info(
+                    f"Loaded custom Spotiflow model from: {config.detection.spotiflow_model_path}"
+                )
+                return model
+            except Exception as e:
+                fallback = "smfish_3d" if config.mode.do_3d else "synth_complex"
+                logger.warning(
+                    f"Custom model failed ({e}), falling back to {fallback}...",
+                    exc_info=True,
+                )
+                return Spotiflow.from_pretrained(fallback)
+        if config.detection.spotiflow_model_path is not None:
             logger.warning(
-                f"Custom model failed ({e}), falling back to {fallback}...",
-                exc_info=True,
+                f"Ignoring spotiflow_model_path ({config.detection.spotiflow_model_path}) "
+                "since use_default_model is True"
             )
-            return Spotiflow.from_pretrained(fallback)
+        logger.debug("Loading default Spotiflow model...")
+        fallback = "smfish_3d" if config.mode.do_3d else "synth_complex"
+        return Spotiflow.from_pretrained(fallback)
 
     @staticmethod
     def _validate_spotiflow_mode(model: Spotiflow, config: PipelineConfig) -> Spotiflow:

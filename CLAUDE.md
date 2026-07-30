@@ -68,18 +68,21 @@ Key modules under `src/spot_detector/`:
   `SegmentationConfig`/`DetectionConfig` respectively (co-located with each model's other settings; typed
   `FilePath`/`DirectoryPath` respectively — Cellpose-SAM's checkpoint is a single file, Spotiflow's is a
   folder), each paired with a `use_default_model: bool = False` flag and a local `@model_validator`
-  requiring the path to be set unless the flag opts into a pretrained default. NOT yet implemented: the
-  "flag wins" precedence logic itself — `ModelBundle`/`utils.py` still load whatever path is configured
-  unconditionally and never check `use_default_model`, so a config with both a path set AND
-  `use_default_model: true` does not yet fall back to the pretrained model as designed (see `todo.txt`
-  item 5 for the tracked follow-up).
+  requiring the path to be set unless the flag opts into a pretrained default. The "flag wins" precedence
+  logic is DONE as of 2026-07-30 (see `todo.txt` item 5): `ModelBundle`'s `_load_cellpose`/
+  `_load_spotiflow_from_config` both check `use_default_model` explicitly before attempting the configured
+  path — if `True`, the custom path is skipped entirely (never attempted, not just allowed to fail) and a
+  pretrained default loads instead, with a `logger.warning` if a path was configured anyway (so an ignored
+  path is never silent).
 - `utils.py` — `parse_condition_from_name` (strips a trailing `_<token><digits>` suffix from filenames to derive
   the experimental condition, e.g. `Treated-DrugA_FOV3` -> `Treated-DrugA`), and `ModelBundle`, a dataclass that
   loads + validates both models together. `ModelBundle.load(config)` is the only way to construct it — takes
   just the `PipelineConfig`, no separate `do_3d` argument (dropped once `config.mode.do_3d` was available
   everywhere internally). Spotiflow loading has a fallback chain: try the custom model path from config -> if
   load fails or the model's dimensionality (`model.config.is_3d`) doesn't match the pipeline's `do_3d` mode,
-  fall back to a pretrained model (`synth_complex` for 2D, `smfish_3d` for 3D).
+  fall back to a pretrained model (`synth_complex` for 2D, `smfish_3d` for 3D) - this fallback is now reached
+  two ways: a caught exception from a genuinely broken custom path, or `use_default_model=True` skipping the
+  custom path attempt outright (distinct code paths, both tested).
 - `segmentation_detection.py` — the actual CV/ML calls. 2D segmentation runs Cellpose on a stdev-projection of the
   z-stack; 3D segmentation runs Cellpose per-plane on a min-subtracted stack and stitches with `stitch_threshold`.
   Both downscale by `segmentation.bin_factor` before inference and upscale masks back, then strip edge-touching
@@ -126,7 +129,7 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 107 tests total as of 2026-07-29. Tests
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 113 tests total as of 2026-07-30. Tests
 mock heavy ML dependencies (Cellpose/Spotiflow model calls) via `pytest-mock` rather than loading real models
 or real microscopy files — keep new tests fast and offline.
 

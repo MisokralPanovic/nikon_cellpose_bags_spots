@@ -147,10 +147,11 @@ open, NOT yet fixed - deliberately deferred, not oversights:
 4. testing coverage   <- reassessed 2026-07-15, mostly in good shape
 - only real gap: qc_figures.py (691 lines, largest module) has zero tests, no test_qc_figures.py exists
 - everything else has real coverage: test_run_pipeline.py (12, real PipelineConfig fixtures as of 2026-07-29
-  - see item 5), test_model_bundle.py (8, covers the fallback chain well, same PipelineConfig rewrite done),
-  test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7), test_assigment.py (5),
-  test_config.py (44 as of 2026-07-28, up from 4 - full PipelineConfig schema coverage, see item 5),
-  test_cli.py (2), test_utils.py (1 parametrized, 13 cases). 107 tests total as of 2026-07-29.
+  - see item 5), test_model_bundle.py (14 as of 2026-07-30, up from 8 - flag-wins precedence coverage added,
+  see item 5), test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7),
+  test_assigment.py (5), test_config.py (44 as of 2026-07-28, up from 4 - full PipelineConfig schema
+  coverage, see item 5), test_cli.py (2), test_utils.py (1 parametrized, 13 cases). 113 tests total as of
+  2026-07-30.
 - DONE 2026-07-27: scene/file isolation tests added (TestProcessFile.test_handles_corrupted_scene,
   TestRunPipeline.test_handles_corrupted_file) - see item 1
 
@@ -273,10 +274,38 @@ open, NOT yet fixed - deliberately deferred, not oversights:
   regardless of the flag, so use_default_model only matters when the path is absent. Picked (a): makes the
   flag an actual behavioral switch (useful for e.g. temporarily A/B-testing against the default without
   deleting a configured path) rather than "path is allowed to be missing," which is a weaker knob than
-  designed. NOT YET IMPLEMENTED - this lives in ModelBundle.load()/_load_cellpose/_load_spotiflow_from_config
-  in utils.py, none of which has been touched for this migration yet. When implemented: log clearly when a
-  configured path is being ignored because use_default_model=True, same "vocal about defaults" bar as the
-  existing Spotiflow fallback logging.
+  designed.
+
+  DONE 2026-07-30: implemented in utils.py's _load_cellpose and _load_spotiflow_from_config. Both now check
+  use_default_model explicitly BEFORE attempting the configured path (guard clause: if not use_default_model,
+  handle the custom-path case and return; otherwise fall through to the default-loading path), rather than
+  relying on the configured path happening to fail. Each logs a warning (via logger.warning) when a path was
+  configured but is being ignored - no warning fires when use_default_model=True and no path was set, since
+  there's nothing to ignore. _load_cellpose omits the pretrained_model kwarg entirely to reach Cellpose's own
+  built-in default (verified via inspect.signature: CellposeModel.__init__'s pretrained_model defaults to
+  'cpsam_v2' when omitted - a real, sane default, not None/error). _load_spotiflow_from_config's
+  use_default_model=True branch goes straight to Spotiflow.from_pretrained(fallback) and never calls
+  Spotiflow.from_folder at all - genuinely distinct from the pre-existing exception-driven fallback path
+  (custom load attempted, raises, caught, falls back), both now separately tested.
+  Test coverage added (test_model_bundle.py): TestLoadCellpose.test_flag_precedence and
+  TestLoadSpotiflow.test_flag_wins_behavior, each parametrized over
+  (use_default_model/configure_path[, do_3d, expected_fallback]) - 3 cases apiece, 6 new tests total (107 ->
+  113). The Spotiflow test's key assertion is mock_from_folder.assert_not_called() - proving the custom path
+  was never attempted, not just that it happened to fail, which is the actual behavioral difference "flag
+  wins" introduces. The warning-log assertion was folded into the same parametrized test rather than a
+  separate one, since configure_path already varies True/False across the existing cases - a separate test
+  would've just rebuilt the same config permutations to check one more mock call.
+  Two real bugs caught by running the tests, not just reading the diff:
+    - test_model_bundle.py: a new Spotiflow-focused test accidentally called ModelBundle._load_cellpose
+      instead of _load_spotiflow (copy-paste from the cellpose version of the test) - surfaced as a real
+      RuntimeError from torch.load/mmap, because _load_cellpose then tried to construct an actual
+      CellposeModel against make_config's dummy (empty, .touch()'d) cellpose_model.ckpt file, since nothing
+      in that test mocked CellposeModel itself. Caught by actually running the tests (3 parametrize cases
+      failed with the same traceback), not by reading the test body.
+    - utils.py: _load_spotiflow_from_config's default-model debug log said "Loading default Cellpose
+      model..." (copy-paste from _load_cellpose) instead of "Spotiflow" - cosmetic, but misleading in logs.
+  Item 5 (pydantic config migration) is now fully closed - schema, call-site rewrite, and flag-wins
+  precedence logic are all done and tested.
 
 6. segmentation correctness   <- BUG CONFIRMED 2026-07-28, not yet fixed (found while pydantic-validating
    bin_factor, deliberately deferred to stay scoped to the config migration)

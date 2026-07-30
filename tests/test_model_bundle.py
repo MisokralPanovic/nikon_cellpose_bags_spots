@@ -41,6 +41,41 @@ class TestLoadCellpose:
             pretrained_model=str(config.segmentation.cellpose_model_path),
         )
 
+    @pytest.mark.parametrize(
+        "use_default_model, configure_path",
+        [
+            (False, True),
+            (True, True),
+            (True, False),
+        ],
+    )
+    def test_flag_precedence(
+        self, mocker: MockerFixture, make_config, use_default_model, configure_path
+    ):
+        base = make_config()
+        overrides = {"use_default_model": use_default_model}
+        if configure_path:
+            overrides["cellpose_model_path"] = str(
+                base.segmentation.cellpose_model_path
+            )
+        else:
+            overrides["cellpose_model_path"] = None
+        config = make_config(segmentation=overrides)
+
+        mock_cellpose_cls = mocker.patch("spot_detector.utils.models.CellposeModel")
+        mock_warning = mocker.patch("spot_detector.utils.logger.warning")
+
+        ModelBundle._load_cellpose(config=config)
+
+        if use_default_model:
+            mock_cellpose_cls.assert_called_once_with(gpu=config.segmentation.use_gpu)
+            assert mock_warning.called == configure_path
+        else:
+            mock_cellpose_cls.assert_called_once_with(
+                gpu=config.segmentation.use_gpu,
+                pretrained_model=str(config.segmentation.cellpose_model_path),
+            )
+
 
 # =====================================================================
 # ModelBundle._load_spotiflow
@@ -98,6 +133,42 @@ class TestLoadSpotiflow:
         ModelBundle._load_spotiflow(config=config)
 
         mock_fallback.assert_called_once_with("smfish_3d")
+
+    @pytest.mark.parametrize(
+        "configure_path, do_3d, expected_fallback",
+        [
+            (True, False, "synth_complex"),
+            (False, False, "synth_complex"),
+            (True, True, "smfish_3d"),
+        ],
+    )
+    def test_flag_wins_behavior(
+        self,
+        mocker: MockerFixture,
+        make_config,
+        mock_from_pretrained,
+        mock_validate_passtrhough,
+        configure_path,
+        do_3d,
+        expected_fallback,
+    ):
+        base = make_config()
+        overrides = {
+            "use_default_model": True,
+            "spotiflow_model_path": str(base.detection.spotiflow_model_path)
+            if configure_path
+            else None,
+        }
+
+        config = make_config(mode={"do_3d": do_3d}, detection=overrides)
+        mock_from_folder = mocker.patch("spot_detector.utils.Spotiflow.from_folder")
+        mock_warning = mocker.patch("spot_detector.utils.logger.warning")
+
+        ModelBundle._load_spotiflow(config=config)
+
+        mock_from_folder.assert_not_called()
+        mock_from_pretrained.assert_called_once_with(expected_fallback)
+        assert mock_warning.called == configure_path
 
 
 # =====================================================================

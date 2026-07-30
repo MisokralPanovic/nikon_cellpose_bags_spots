@@ -5,6 +5,63 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-07-30 — "Flag wins" use_default_model precedence implemented, config migration fully closed
+
+**Session goal:** implement the last open piece of `todo.txt` item 5 - the "flag wins" precedence logic
+decided 2026-07-28 but never coded. I wrote the implementation and tests myself this session; Claude
+reviewed each increment by actually running the tests, not just reading the diff.
+
+**`_load_cellpose` implemented first.** Flattened from a 3-level nested `if/else` into a guard clause (return
+early on the simple "custom model" case, fall through to the default-loading path otherwise) - removes a
+duplicated `CellposeModel(gpu=...)` call that existed in both arms of the original nested `else`. Confirmed
+via `inspect.signature(models.CellposeModel.__init__)` that omitting `pretrained_model` entirely isn't
+undefined behavior - it has its own default (`'cpsam_v2'`), so "don't pass a path" genuinely means "load
+Cellpose's own pretrained default," matching the 2026-07-28 design assumption ("Cellpose has its own robust
+pretrained default, no fallback code needed on our side").
+
+**`_load_spotiflow_from_config` implemented second, same shape.** Before this session, `use_default_model`
+was checked nowhere for Spotiflow either - the existing fallback chain only *looked* like it respected the
+flag, because an unset path made `Spotiflow.from_folder("None")` raise, which the pre-existing exception
+handler happened to catch. That's a fundamentally different code path from "flag wins": it doesn't fire if a
+path IS configured alongside `use_default_model=True` (previously: silently used the configured path anyway,
+ignoring the flag entirely). Fixed by adding the same explicit `if not use_default_model: try/except ...`
+guard before ever calling `Spotiflow.from_folder`.
+
+- **A mocked test can fail in a way that reveals a real, unrelated bug in the test itself, not the code under
+  test.** A new Spotiflow-focused test accidentally called `ModelBundle._load_cellpose` instead of
+  `_load_spotiflow` (leftover from copy-pasting the cellpose version as a starting point). Running it didn't
+  raise a clean assertion failure - it raised `RuntimeError: mmap can only be used with files saved with
+  torch.save(...)`, because `_load_cellpose` then tried to construct a *real* `CellposeModel` against
+  `make_config`'s dummy `cellpose_model.ckpt` (just an empty `.touch()`'d file), since the test never mocked
+  `CellposeModel` at all. The traceback pointed at PyTorch's serialization internals, nothing like "wrong
+  method called" - had to trace it back to the call site to find the actual one-line typo. Lesson: an
+  unexpected, deep, unfamiliar-looking traceback from a test is often not a new discovery about the code under
+  test - check the test's own call sites first, especially right after a copy-paste.
+- **Testing "it was never attempted" vs. "it failed and recovered" are different claims, even when they reach
+  the same final call.** Both the exception-driven fallback (already tested) and the new flag-driven fallback
+  end up calling `Spotiflow.from_pretrained(fallback)` - so asserting just that would duplicate coverage that
+  already existed. The assertion that actually proves flag-wins is `mock_from_folder.assert_not_called()` -
+  proving the custom-path attempt never happened at all, which is the one thing that's actually new/different
+  about this code path versus the pre-existing exception-based one.
+- **When a parametrize axis you already need for one assertion also happens to cover a second, related
+  assertion, fold it into the same test rather than writing a new one.** The flag-wins test already
+  parametrizes over `configure_path` (True/False) to prove which fallback model gets chosen; that's the exact
+  same axis needed to prove the "ignoring path" warning fires only when there was a path to ignore. Considered
+  writing a separate `test_flag_triggers_warning_log` test, but that would've just rebuilt the same three
+  config permutations to check one more mock call - folded the warning assertion into the existing
+  parametrized test instead. Renamed it `test_flag_wins_behavior` (from `test_flag_wins_skips_custom_load_
+  entirely`) since it now documents everything that happens when the flag wins, not just the one narrowest
+  claim its original name promised.
+- **A copy-pasted log message is as easy to miss as a copy-pasted method call.** `_load_spotiflow_from_config`
+  originally said `logger.debug("Loading default Cellpose model...")` in its own default-loading branch -
+  copy-paste residue from `_load_cellpose`, caught by reading the diff carefully rather than by any test
+  (log message text isn't usually asserted on unless a test specifically checks it).
+
+**Result: `todo.txt` item 5 (pydantic config migration) is now fully closed** - schema, call-site rewrite, and
+flag-wins precedence logic are all implemented and tested. 113 tests total (up from 107), 6 new
+(`TestLoadCellpose.test_flag_precedence`, `TestLoadSpotiflow.test_flag_wins_behavior`, 3 parametrize cases
+each).
+
 ## 2026-07-29 — Pydantic config migration: call-site rewrite finished, conftest.py streamlined
 
 **Session goal:** finish the call-site rewrite scoped 2026-07-28 (`config["section"]["key"]` ->
