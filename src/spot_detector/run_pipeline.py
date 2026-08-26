@@ -256,19 +256,28 @@ def _process_scene(
         scene=scene,
     )
 
-    make_qc_figure(
-        condition=condition,
-        scene=scene,
-        mode=mode,
-        out_path=fig_dir / f"{condition}_S{scene:02d}_{mode.upper()}_qc.png",
-        segmentation_image=objects_stack,
-        spots_image=spots_stack,
-        masks=masks,
-        coordinates=points,
-        spot_labels=spot_labels,
-        flow_details=details,
-        dx=dx,
-        dz=dz,
-        config=config,
-    )
+    try:
+        make_qc_figure(
+            condition=condition,
+            scene=scene,
+            mode=mode,
+            out_path=fig_dir / f"{condition}_S{scene:02d}_{mode.upper()}_qc.png",
+            segmentation_image=objects_stack,
+            spots_image=spots_stack,
+            masks=masks,
+            coordinates=points,
+            spot_labels=spot_labels,
+            flow_details=details,
+            dx=dx,
+            dz=dz,
+            config=config,
+        )
+    except FatalPipelineError:
+        raise
+    except Exception as e:
+        logger.warning(
+            f"Creating QC figure for {condition}_S{scene:02d}_{mode.upper()} failed ({e}), skipping",
+            exc_info=True,
+        )
+
     return scene_df

@@ -131,6 +131,15 @@ doesn't discard an already-computed scene_df - see the DESIGNED 2026-07-30 secti
 two-layer design) is NOT yet implemented. That, plus full test_qc_figures.py coverage, is item 4's job (see
 below) - next session's target.
 
+IN PROGRESS 2026-08-25: user implementing panel-level try/except in qc_figures.py (started with
+_panel_segemntation) + the figure-level wrapper in run_pipeline.py's _process_scene. Reviewed and found both
+missing `except FatalPipelineError: raise` before their catch-all (qc_figures.py doesn't import
+FatalPipelineError yet) - needs fixing before replicating the pattern to the other 5 panels.
+FOLLOW-UP once that's added: every function that can now raise/propagate FatalPipelineError (the 6 _panel_*
+functions, make_qc_figure, _process_scene) needs its docstring updated with a Raises: section - currently
+none of them document that a FatalPipelineError can escape, since none of this except-FatalPipelineError-
+raise wiring existed when those docstrings were originally written.
+
 2. logging & observability   <- print() -> logger conversion done, all known items closed
 - DONE (confirmed still true 2026-07-30): configure_logging() is called from cli.py's main() before
   run_pipeline (now configure_logging(log_dir=Path(config.paths.out_dir) / "logs"), updated to attribute

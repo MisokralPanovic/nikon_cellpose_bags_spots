@@ -14,6 +14,7 @@ from scipy.spatial import KDTree
 from scipy.stats import gaussian_kde
 
 from spot_detector.config import PipelineConfig
+from spot_detector.exceptions import FatalPipelineError
 
 logger = logging.getLogger(__name__)
 
@@ -124,15 +125,30 @@ def _panel_segemntation(ax: Axes, images: ImageData, dx: float) -> None:
         ax (Axes): Matplotlib axes object.
         images (ImageData): ImageData object with processed segmentation image and 2d masks.
     """
-    ax.imshow(images.seg_inv_norm, cmap="gray")
-    if images.masks_2d is not None and images.masks_2d.max() > 0:
-        mask_overlay = np.ma.masked_where(images.masks_2d == 0, images.masks_2d)
-        ax.imshow(
-            mask_overlay,
-            alpha=0.3,
-            cmap="tab10",
-            vmin=1,
-            vmax=max(images.masks_2d.max(), 1),
+    try:
+        ax.imshow(images.seg_inv_norm, cmap="gray")
+        if images.masks_2d is not None and images.masks_2d.max() > 0:
+            mask_overlay = np.ma.masked_where(images.masks_2d == 0, images.masks_2d)
+            ax.imshow(
+                mask_overlay,
+                alpha=0.3,
+                cmap="tab10",
+                vmin=1,
+                vmax=max(images.masks_2d.max(), 1),
+            )
+    except FatalPipelineError:
+        raise
+    except Exception as e:
+        logger.warning(
+            f"Segmentation panel rendering failed ({e}), skipping.", exc_info=True
+        )
+        ax.text(
+            0.5,
+            0.5,
+            "Failed to render",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
         )
 
     scalebar = ScaleBar(
@@ -163,28 +179,43 @@ def _panel_spot_detection(
         spots (SpotData): SpotData object with x and y spot coordinates.
         spot_labels (np.ndarray): Spot object labels.
     """
-    ax.imshow(images.spots_stdev_norm, cmap="gray_r")
-    if spots.has_spots and spots.x is not None and spots.y is not None:  # type: ignore
-        inside_objects = spot_labels > 0
-        # background elements
-        ax.scatter(
-            spots.x[~inside_objects],
-            spots.y[~inside_objects],  # type: ignore
-            color="gray",
-            alpha=0.5,
-            s=5,
-            marker="x",
+    try:
+        ax.imshow(images.spots_stdev_norm, cmap="gray_r")
+        if spots.has_spots and spots.x is not None and spots.y is not None:  # type: ignore
+            inside_objects = spot_labels > 0
+            # background elements
+            ax.scatter(
+                spots.x[~inside_objects],
+                spots.y[~inside_objects],  # type: ignore
+                color="gray",
+                alpha=0.5,
+                s=5,
+                marker="x",
+            )
+            # assigned spots
+            ax.scatter(
+                spots.x[inside_objects],
+                spots.y[inside_objects],  # type: ignore
+                c=spot_labels[inside_objects],
+                cmap="tab10",
+                s=8,
+                edgecolors="black",
+                linewidths=0.3,
+                alpha=0.2,
+            )
+    except FatalPipelineError:
+        raise
+    except Exception as e:
+        logger.warning(
+            f"Spot detection panel rendering failed ({e}), skipping.", exc_info=True
         )
-        # assigned spots
-        ax.scatter(
-            spots.x[inside_objects],
-            spots.y[inside_objects],  # type: ignore
-            c=spot_labels[inside_objects],
-            cmap="tab10",
-            s=8,
-            edgecolors="black",
-            linewidths=0.3,
-            alpha=0.2,
+        ax.text(
+            0.5,
+            0.5,
+            "Failed to render",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
         )
     ax.set_title("Spot Detections (StDev Proj)")
     ax.axis("off")
@@ -331,6 +362,8 @@ def _panel_flow(ax: Axes, flow_details: SimpleNamespace) -> None:
     try:
         rgb = _flow_to_rgb(flow_data)
         ax.imshow(rgb)
+    except FatalPipelineError:
+        raise
     except Exception as e:
         logger.warning(
             f"Constructing flow panel failed ({e}), falling back to empty panel with error message",
@@ -364,85 +397,121 @@ def _panel_z_distribution(
         return
 
     elif spots.is_3d:
-        # Spots per z slice stacked histogram
-        unique_labels = np.unique(spot_labels)
-        hist_data = []
-        colors = []
-        labels = []
-        cmap_colors = plt.cm.tab10.colors  # type: ignore
+        try:
+            # Spots per z slice stacked histogram
+            unique_labels = np.unique(spot_labels)
+            hist_data = []
+            colors = []
+            labels = []
+            cmap_colors = plt.cm.tab10.colors  # type: ignore
 
-        for lbl in unique_labels:
-            mask_label = spot_labels == lbl
-            if lbl == 0:
-                labels.append("Background")
-                colors.append("lightgray")
-            else:
-                labels.append(f"Obj {lbl}")
-                colors.append(cmap_colors[(lbl - 1) % len(cmap_colors)])
-            hist_data.append(spots.z_um[mask_label])  # type: ignore
+            for lbl in unique_labels:
+                mask_label = spot_labels == lbl
+                if lbl == 0:
+                    labels.append("Background")
+                    colors.append("lightgray")
+                else:
+                    labels.append(f"Obj {lbl}")
+                    colors.append(cmap_colors[(lbl - 1) % len(cmap_colors)])
+                hist_data.append(spots.z_um[mask_label])  # type: ignore
 
-        total_z_planes = (
-            images.spot_image.shape[0] if images.spot_image.ndim == 3 else 1
-        )
-        bin_edges = (np.arange(total_z_planes + 1) * spots.dz).tolist()
+            total_z_planes = (
+                images.spot_image.shape[0] if images.spot_image.ndim == 3 else 1
+            )
+            bin_edges = (np.arange(total_z_planes + 1) * spots.dz).tolist()
 
-        ax.hist(
-            hist_data,
-            bins=bin_edges,
-            stacked=True,
-            color=colors,
-            label=labels,
-            alpha=0.7,
-            edgecolor="black",
-            linewidth=0.3,
-        )
+            ax.hist(
+                hist_data,
+                bins=bin_edges,
+                stacked=True,
+                color=colors,
+                label=labels,
+                alpha=0.7,
+                edgecolor="black",
+                linewidth=0.3,
+            )
+
+            n_obj = (
+                len(np.unique(images.masks_2d)) - 1
+                if images.masks_2d is not None
+                else 0
+            )
+            if n_obj < 10:
+                ax.legend(fontsize=8, loc="upper right")
+
+        except FatalPipelineError:
+            raise
+        except Exception as e:
+            logger.warning(
+                f"Constructing z-distribution figure failed ({e}), skipping.",
+                exc_info=True,
+            )
+            ax.text(
+                0.5,
+                0.5,
+                "Failed to render",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
         ax.set_title("Z-Distribution Profile (µm)")
         ax.set_xlabel("Z-Depth Position (µm)")
         ax.set_ylabel("Spot Count")
         ax.grid(True, linestyle=":", alpha=0.5)
 
-        n_obj = (
-            len(np.unique(images.masks_2d)) - 1 if images.masks_2d is not None else 0
-        )
-        if n_obj < 10:
-            ax.legend(fontsize=8, loc="upper right")
     else:
-        # Spot nearest neighbour distance
-        if len(spots.coordinates) < 2:
+        try:
+            # Spot nearest neighbour distance
+            if len(spots.coordinates) < 2:
+                ax.text(
+                    0.5,
+                    0.5,
+                    "Insufficient Spots for NND",
+                    ha="center",
+                    va="center",
+                    color="gray",
+                )
+                ax.grid(False)
+            else:
+                y_um_f = spots.coordinates[:, 0] * spots.dx  # float Y in µm
+                x_um_f = spots.coordinates[:, 1] * spots.dx  # float X in µm
+                spatial_xy_um = np.column_stack((y_um_f, x_um_f))
+                tree = KDTree(spatial_xy_um)
+                distances, _ = tree.query(spatial_xy_um, k=2)
+                nnd_um = distances[:, 1]
+
+                ax.hist(
+                    nnd_um,
+                    bins="auto",
+                    density=True,
+                    color="#FF66CC",
+                    alpha=0.4,
+                    edgecolor="#FF66CC",
+                )
+                try:
+                    kde = gaussian_kde(nnd_um)
+                    x_vals = np.linspace(nnd_um.min(), nnd_um.max(), 200)
+                    ax.plot(x_vals, kde(x_vals), color="#FF66CC", linewidth=1.5)
+                except FatalPipelineError:
+                    raise
+                except Exception:
+                    logger.warning(
+                        "Constructing KDE figure failed, skipping.", exc_info=True
+                    )
+        except FatalPipelineError:
+            raise
+        except Exception as e:
+            logger.warning(
+                f"Constructing NND figure failed ({e}), skipping.", exc_info=True
+            )
             ax.text(
                 0.5,
                 0.5,
-                "Insufficient Spots for NND",
+                "Failed to render",
                 ha="center",
                 va="center",
-                color="gray",
+                transform=ax.transAxes,
             )
-            ax.grid(False)
-        else:
-            y_um_f = spots.coordinates[:, 0] * spots.dx  # float Y in µm
-            x_um_f = spots.coordinates[:, 1] * spots.dx  # float X in µm
-            spatial_xy_um = np.column_stack((y_um_f, x_um_f))
-            tree = KDTree(spatial_xy_um)
-            distances, _ = tree.query(spatial_xy_um, k=2)
-            nnd_um = distances[:, 1]
-
-            ax.hist(
-                nnd_um,
-                bins="auto",
-                density=True,
-                color="#FF66CC",
-                alpha=0.4,
-                edgecolor="#FF66CC",
-            )
-            try:
-                kde = gaussian_kde(nnd_um)
-                x_vals = np.linspace(nnd_um.min(), nnd_um.max(), 200)
-                ax.plot(x_vals, kde(x_vals), color="#FF66CC", linewidth=1.5)
-
-            except Exception:
-                logger.warning(
-                    "Constructing KDE figure failed, skipping.", exc_info=True
-                )
         ax.set_title("Spot Proximity Distribution")
         ax.set_xlabel("Nearest Neighbor Distance (µm)")
         ax.set_ylabel("Density")
@@ -468,34 +537,49 @@ def _panel_ecdf(
         ax.text(0.5, 0.5, "No Spots Detected", ha="center", va="center", color="gray")
         ax.axis("off")
     else:
-        prob_arr = np.array(flow_details.prob)
-        inside = spot_labels > 0
+        try:
+            prob_arr = np.array(flow_details.prob)
+            inside = spot_labels > 0
 
-        for mask, label, color, ls in [
-            (inside, "Inside object", "#D4537E", "-"),
-            (~inside, "Background", "#888780", "--"),
-        ]:
-            subset = np.sort(prob_arr[mask])
-            if len(subset) == 0:
-                continue
-            ecdf_y = np.arange(1, len(subset) + 1) / len(subset)
-            ax.step(
-                subset,
-                ecdf_y,
-                where="pre",
-                color=color,
-                linestyle=ls,
-                linewidth=1.5,
-                label=f"{label} (n={len(subset)})",
+            for mask, label, color, ls in [
+                (inside, "Inside object", "#D4537E", "-"),
+                (~inside, "Background", "#888780", "--"),
+            ]:
+                subset = np.sort(prob_arr[mask])
+                if len(subset) == 0:
+                    continue
+                ecdf_y = np.arange(1, len(subset) + 1) / len(subset)
+                ax.step(
+                    subset,
+                    ecdf_y,
+                    where="pre",
+                    color=color,
+                    linestyle=ls,
+                    linewidth=1.5,
+                    label=f"{label} (n={len(subset)})",
+                )
+            ax.axvline(
+                config.detection.prob_thresh,
+                color="gray",
+                linewidth=0.8,
+                linestyle=":",
+                alpha=0.6,
+                label=f"thresh={config.detection.prob_thresh}",
             )
-        ax.axvline(
-            config.detection.prob_thresh,
-            color="gray",
-            linewidth=0.8,
-            linestyle=":",
-            alpha=0.6,
-            label=f"thresh={config.detection.prob_thresh}",
-        )
+        except FatalPipelineError:
+            raise
+        except Exception as e:
+            logger.warning(
+                f"ECDF panel rendering failed ({e}), skipping.", exc_info=True
+            )
+            ax.text(
+                0.5,
+                0.5,
+                "Failed to render",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
         ax.set_xlabel("Spotiflow probability score")
@@ -540,34 +624,49 @@ def _panel_spotmap(ax: Axes, images: ImageData, spots: SpotData) -> None:
         x_plot = spots.x * dx  # type: ignore
         y_plot = spots.y * dx  # type: ignore
 
-        if spots.is_3d:
-            sc = ax.scatter(
-                x_plot,
-                y_plot,
-                c=spots.z_um,
-                cmap="turbo",  # type: ignore
-                s=12,
-                edgecolors="black",
-                linewidths=0.15,
-                alpha=0.85,
-            )
-            fig = ax.get_figure()
-            if fig is not None:
-                cbar = fig.colorbar(
-                    sc, ax=ax, orientation="vertical", pad=0.02, shrink=0.7
+        try:
+            if spots.is_3d:
+                sc = ax.scatter(
+                    x_plot,
+                    y_plot,
+                    c=spots.z_um,
+                    cmap="turbo",  # type: ignore
+                    s=12,
+                    edgecolors="black",
+                    linewidths=0.15,
+                    alpha=0.85,
                 )
-                cbar.set_label("Z depth (µm)", fontsize=8)
-                cbar.ax.tick_params(labelsize=8)
-        else:
-            ax.scatter(
-                x_plot,
-                y_plot,
-                color="#4FC3F7",
-                s=10,
-                edgecolors="black",
-                linewidths=0.15,
-                alpha=0.85,
-            )  # type: ignore
+                fig = ax.get_figure()
+                if fig is not None:
+                    cbar = fig.colorbar(
+                        sc, ax=ax, orientation="vertical", pad=0.02, shrink=0.7
+                    )
+                    cbar.set_label("Z depth (µm)", fontsize=8)
+                    cbar.ax.tick_params(labelsize=8)
+            else:
+                ax.scatter(
+                    x_plot,
+                    y_plot,
+                    color="#4FC3F7",
+                    s=10,
+                    edgecolors="black",
+                    linewidths=0.15,
+                    alpha=0.85,
+                )  # type: ignore
+        except FatalPipelineError:
+            raise
+        except Exception as e:
+            logger.warning(
+                f"Spotmap panel rendering failed ({e}), skipping.", exc_info=True
+            )
+            ax.text(
+                0.5,
+                0.5,
+                "Failed to render",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
 
     ax.set_xlim(0, img_w * dx)
     ax.set_ylim(img_h * dx, 0)  # y-axis inverted to match image orientation
