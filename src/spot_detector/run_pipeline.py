@@ -34,6 +34,12 @@ def run_pipeline(config: PipelineConfig) -> pd.DataFrame | None:
 
     Returns:
         pd.DataFrame | None: Combined run-level results, or None if no files processed.
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised anywhere in the scene
+            pipeline (segmentation, detection, measurement, or QC figure
+            rendering), so a fatal error still aborts the file/run instead of
+            being caught and logged like an ordinary per-scene failure.
     """
     # define dim mode
     do_3d = config.mode.do_3d
@@ -105,13 +111,20 @@ def run_pipeline(config: PipelineConfig) -> pd.DataFrame | None:
     logger.info(
         f"Saved run CSV: {run_csv_path.name} ({len(run_df)} rows, {run_df['Condition'].nunique()} condition(s))"
     )
-
-    make_run_summary_figure(
-        df=run_df,
-        experiment=experiment,
-        mode=mode,
-        out_path=fig_dir / f"_run_summary_{mode.upper()}.png",
-    )
+    try:
+        make_run_summary_figure(
+            df=run_df,
+            experiment=experiment,
+            mode=mode,
+            out_path=fig_dir / f"_run_summary_{mode.upper()}.png",
+        )
+    except FatalPipelineError:
+        raise
+    except Exception as e:
+        logger.warning(
+            f"Creating run summary figure for {experiment}_summary_{mode.upper()} failed ({e}), skipping",
+            exc_info=True,
+        )
     return run_df
 
 
@@ -125,7 +138,14 @@ def _process_file(
     tab_dir: Path,
     failures: list,
 ) -> pd.DataFrame | None:
-    """Process a single multi-scene image file. Returns combined scene DataFrame or None."""
+    """Process a single multi-scene image file. Returns combined scene DataFrame or None.
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised anywhere in the scene
+            pipeline (segmentation, detection, measurement, or QC figure
+            rendering), so a fatal error still aborts the file/run instead of
+            being caught and logged like an ordinary per-scene failure.
+    """
     condition = parse_condition_from_name(filepath.stem)
     img = BioImage(filepath)
 
@@ -181,12 +201,21 @@ def _process_file(
     combined_df.to_csv(csv_path, index=False)
     logger.info(f"Saved CSV: {csv_path.name}  ({len(combined_df)} rows)")
 
-    make_scene_summary_figure(
-        df=combined_df,
-        condition=condition,
-        mode=mode,
-        out_path=fig_dir / f"{condition}_summary_{mode.upper()}.png",
-    )
+    try:
+        make_scene_summary_figure(
+            df=combined_df,
+            condition=condition,
+            mode=mode,
+            out_path=fig_dir / f"{condition}_summary_{mode.upper()}.png",
+        )
+    except FatalPipelineError:
+        raise
+    except Exception as e:
+        logger.warning(
+            f"Creating scene summary figure for {condition}_summary_{mode.upper()} failed ({e}), skipping",
+            exc_info=True,
+        )
+
     return combined_df
 
 
@@ -202,7 +231,14 @@ def _process_scene(
     scene: int,
     fig_dir: Path,
 ) -> pd.DataFrame:
-    """Process a single scene: segment, detect, measure, and produce QC figure."""
+    """Process a single scene: segment, detect, measure, and produce QC figure.
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised anywhere in the scene
+            pipeline (segmentation, detection, measurement, or QC figure
+            rendering), so a fatal error still aborts the file/run instead of
+            being caught and logged like an ordinary per-scene failure.
+    """
     dim_order = "YX" if "Z" not in img.dims.order else "ZYX"
     objects_stack = img.get_image_data(
         dim_order, C=config.channels.segmentation_image

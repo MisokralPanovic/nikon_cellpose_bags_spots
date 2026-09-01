@@ -65,8 +65,12 @@ class SpotData:
                 self.z = np.zeros(len(self.coordinates))
                 self.y = np.round(self.coordinates[:, 0]).astype(int)
                 self.x = np.round(self.coordinates[:, 1]).astype(int)
+                self.z_um = None
             self.x_um = self.x * self.dx
             self.y_um = self.y * self.dx
+        else:
+            self.x = self.y = self.z = None
+            self.x_um = self.y_um = self.z_um = None
 
 
 @dataclass
@@ -124,6 +128,11 @@ def _panel_segemntation(ax: Axes, images: ImageData, dx: float) -> None:
     Args:
         ax (Axes): Matplotlib axes object.
         images (ImageData): ImageData object with processed segmentation image and 2d masks.
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised during rendering, so a
+            fatal error still terminates the pipeline instead of being logged and
+            replaced with a placeholder like an ordinary rendering failure.
     """
     try:
         ax.imshow(images.seg_inv_norm, cmap="gray")
@@ -178,6 +187,11 @@ def _panel_spot_detection(
         images (ImageData): ImageData object with processed spots image.
         spots (SpotData): SpotData object with x and y spot coordinates.
         spot_labels (np.ndarray): Spot object labels.
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised during rendering, so a
+            fatal error still terminates the pipeline instead of being logged and
+            replaced with a placeholder like an ordinary rendering failure.
     """
     try:
         ax.imshow(images.spots_stdev_norm, cmap="gray_r")
@@ -306,6 +320,11 @@ def _panel_flow(ax: Axes, flow_details: SimpleNamespace) -> None:
         ax (Axes): Matplotlib axes object.
         flow_details (SimpleNamespace): Spotiflow details object with ``flow``
             and optional ``heatmap`` attributes.
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised during rendering, so a
+            fatal error still terminates the pipeline instead of being logged and
+            replaced with a placeholder like an ordinary rendering failure.
     """
     ax.set_title("Stereographic Flow")
     ax.axis("off")
@@ -390,6 +409,11 @@ def _panel_z_distribution(
         images (ImageData): ImageData object with processed spots image and 2d masks.
         spots (SpotData): SpotData object with a bunch of info needed.
         spot_labels (np.ndarray): Spot object labels.
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised during rendering, so a
+            fatal error still terminates the pipeline instead of being logged and
+            replaced with a placeholder like an ordinary rendering failure.
     """
     if not spots.has_spots:
         ax.text(0.5, 0.5, "No Spots Detected", ha="center", va="center", color="gray")
@@ -532,6 +556,11 @@ def _panel_ecdf(
         spot_labels (np.ndarray): Spot object labels.
         flow_details (SimpleNamespace): Spotiflow probability score object.
         config (PipelineConfig): Config dictionary containg 'prob_thresh' value used for spotiflow detection.
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised during rendering, so a
+            fatal error still terminates the pipeline instead of being logged and
+            replaced with a placeholder like an ordinary rendering failure.
     """
     if not spots.has_spots:
         ax.text(0.5, 0.5, "No Spots Detected", ha="center", va="center", color="gray")
@@ -599,6 +628,11 @@ def _panel_spotmap(ax: Axes, images: ImageData, spots: SpotData) -> None:
         ax (Axes): Matplotlib axes object.
         images (ImageData): ImageData object.
         spots (SpotData): SpotData object.
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised during rendering, so a
+            fatal error still terminates the pipeline instead of being logged and
+            replaced with a placeholder like an ordinary rendering failure.
     """
     dx = spots.dx
     img_h = images.segmentation_image.shape[-2]
@@ -671,12 +705,6 @@ def _panel_spotmap(ax: Axes, images: ImageData, spots: SpotData) -> None:
     ax.set_xlim(0, img_w * dx)
     ax.set_ylim(img_h * dx, 0)  # y-axis inverted to match image orientation
     ax.set_aspect("equal")
-    ax.set_title("XY Spatial Spotmap (µm)")
-
-    for spine in ax.spines.values():
-        spine.set_visible(False)
-    ax.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
-    ax.set_axis_off()
 
 
 # qc figures
@@ -719,6 +747,11 @@ def make_qc_figure(
         dx (float): XY pixel size in µm.
         dz (float): Z pixel size in µm.
         config (PipelineConfig): Pipeline config PipelineConfig object (must contain 'prob_thresh').
+
+    Raises:
+        FatalPipelineError: Propagated uncaught if raised by any panel-rendering
+            call, so a fatal error still terminates the pipeline instead of being
+            caught here and treated as an ordinary per-panel rendering failure.
     """
     is_3d = mode == "3d"
     n_obj = len(np.unique(masks)) - 1

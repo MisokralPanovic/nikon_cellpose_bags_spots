@@ -126,19 +126,82 @@ and_aborts_run, both proving a FatalPipelineError raised deep in the call chain 
 the loop stops immediately - call_count == 2, not 3, meaning the item after the fatal one is never attempted,
 and no run-level CSVs get written. 115 tests total (up from 113).
 
-STILL OPEN: the QC-figure-resilience half (qc_figures.py's panel/figure-level wrapping so a rendering failure
-doesn't discard an already-computed scene_df - see the DESIGNED 2026-07-30 section above for the full
-two-layer design) is NOT yet implemented. That, plus full test_qc_figures.py coverage, is item 4's job (see
-below) - next session's target.
+DONE 2026-08-25: the QC-figure-resilience half (qc_figures.py's panel/figure-level wrapping so a rendering
+failure doesn't discard an already-computed scene_df - see the DESIGNED 2026-07-30 section above for the full
+two-layer design) is now implemented. User wrote it (learning-mode - Claude reviewed only, did not write
+code), Claude caught two rounds of real issues before it was correct:
+  - initial pass: both qc_figures.py (_panel_segemntation) and run_pipeline.py's _process_scene figure-level
+    wrapper were missing `except FatalPipelineError: raise` before their catch-all - qc_figures.py didn't
+    even import FatalPipelineError yet. Fixed, then replicated correctly across all remaining 5 panels
+    (_panel_spot_detection, _panel_ecdf, _panel_spotmap, _panel_flow, _panel_z_distribution) - all now
+    consistently pass FatalPipelineError through before their `except Exception` catch-all, same
+    "Failed to render" ax.text() placeholder pattern.
+  - second pass, specific to _panel_z_distribution (the only panel needing real new try/except structure
+    rather than a one-line fix, since it has two independent code paths - 3D stacked histogram vs 2D
+    NND/KDE - each wrapped separately): (a) the n_obj/ax.legend() call for the 3D branch originally sat
+    AFTER the try/except, so a failed ax.hist() call would still hit ax.legend() with no labeled artists on
+    the axes (harmless but a stray matplotlib UserWarning + possible empty legend box drawn over the
+    "Failed to render" placeholder) - fixed by moving both inside the try, right after ax.hist(), so they're
+    skipped on failure same as everything else; (b) the pre-existing inner KDE-only try/except (finer-
+    grained resilience predating this work - a failed KDE fit drops just the smoothed curve, keeps the
+    histogram) was itself missing `except FatalPipelineError: raise` before its own catch-all, added for
+    consistency with every other catch-all in the file.
+  All 6 panels + make_qc_figure + _process_scene now correctly wired. _flow_to_rgb needed no changes -
+  it's a pure data-transform helper called INSIDE _panel_flow's try, not a _panel_* function itself, and
+  already documents its one raise (ValueError) correctly.
+  DONE 2026-08-26: the docstring FOLLOW-UP is closed - all 8 functions that can raise/propagate
+  FatalPipelineError (the 6 _panel_* functions, make_qc_figure, _process_scene) now document it with a
+  Raises: section. User wrote it (learning-mode - Claude reviewed only, did not write code); Claude's review
+  caught one gap: make_qc_figure itself was initially missed, since it calls all 6 panels unwrapped (no
+  try/except in its own body - _process_scene is what wraps the make_qc_figure(...) call) - so a
+  FatalPipelineError from any panel passes straight through make_qc_figure uncaught, same as the panels
+  themselves, and that needed its own Raises: section too. Fixed, all 8 confirmed correct on review.
+  test_qc_figures.py coverage (item 4) is still separately open - see below.
 
-IN PROGRESS 2026-08-25: user implementing panel-level try/except in qc_figures.py (started with
-_panel_segemntation) + the figure-level wrapper in run_pipeline.py's _process_scene. Reviewed and found both
-missing `except FatalPipelineError: raise` before their catch-all (qc_figures.py doesn't import
-FatalPipelineError yet) - needs fixing before replicating the pattern to the other 5 panels.
-FOLLOW-UP once that's added: every function that can now raise/propagate FatalPipelineError (the 6 _panel_*
-functions, make_qc_figure, _process_scene) needs its docstring updated with a Raises: section - currently
-none of them document that a FatalPipelineError can escape, since none of this except-FatalPipelineError-
-raise wiring existed when those docstrings were originally written.
+NEW GAP FOUND 2026-08-25 (not part of the original DESIGNED 2026-07-30 scope, symmetric bug one level up):
+make_scene_summary_figure and make_run_summary_figure have the SAME "plotting failure discards already-
+persisted data" problem make_qc_figure had, and neither is fixed yet:
+  - make_scene_summary_figure - called unwrapped in _process_file (run_pipeline.py), AFTER combined_df is
+    already written to its per-file CSV. A failure here propagates up to run_pipeline's per-file try/except,
+    which DOES catch it - but mislabels it as a whole-file failure ("Processing file {filepath.name} failed",
+    a Source_File-level record in the failures CSV) even though the actual per-scene data was fine and
+    already safely on disk. combined_df's return value is discarded, so that file's rows silently drop out
+    of the run-level rollup (_run_objects_{mode}.csv) and the run summary figure.
+  - make_run_summary_figure - called unwrapped at the very end of run_pipeline() itself, AFTER run_df is
+    already concatenated and written to _run_objects_{mode}.csv. NOTHING catches this - confirmed cli.py's
+    main() calls run_pipeline(config=config) with zero try/except. A failure here crashes the whole process
+    with an unhandled traceback, even though every CSV the run produced is already correctly on disk. Worse
+    than make_qc_figure's original bug (which at least got caught, just mishandled) - this one isn't caught
+    at all.
+DONE 2026-08-26 (design agreed in chat, then implemented by user - learning-mode, Claude reviewed only):
+  - fix is call-site-only wrapping, same shape _process_scene already uses around its make_qc_figure call
+    (run_pipeline.py lines ~266-288): wrap each of the two call sites in try/except FatalPipelineError: raise
+    / except Exception: logger.warning(..., exc_info=True), then fall through and return the already-computed
+    DataFrame regardless (combined_df / run_df). NOT recorded in the failures list/CSV, same reasoning as
+    make_qc_figure's fix - that list means "this row's DATA is missing", but here the data is fine, only the
+    picture is degraded/missing.
+  - explicitly decided AGAINST panel-level wrapping (i.e. NOT extending each function's 4 inline panels A-D
+    with their own try/except + placeholder, unlike make_qc_figure's 6 separate _panel_* helpers): these
+    panels are simpler/more robust (swarmplot/boxplot+stripplot/histogram/scatter, no per-panel image
+    decoding or KDE fitting like the QC panels have) and doing it properly would need extracting each into
+    its own function first - same restructuring qc_figures.py already went through for make_qc_figure,
+    judged not worth it here. Revisit only if a real per-panel failure mode shows up in practice (e.g. Panel
+    C's CV calc, x.std()/x.mean(), NaN or div-by-zero on a single-row group).
+  - call site 1 (make_scene_summary_figure, in _process_file): wrapping locally at the call site is what
+    fixes BOTH problems at once - the exception no longer escapes to run_pipeline's file-level catch (so it's
+    no longer mislabeled as a Source_File-level failure), and combined_df still returns since it's computed
+    above the try block.
+  - call site 2 (make_run_summary_figure, in run_pipeline() itself): same pattern: wrap the call, return
+    run_df regardless.
+  IMPLEMENTED as designed, verified by reading the diff: both call sites (run_pipeline.py lines 114-127 for
+  make_run_summary_figure, lines 204-217 for make_scene_summary_figure) wrapped exactly per the design above,
+  no panel-level changes, neither failure recorded in `failures`, both DataFrames still returned regardless.
+  Bonus (not scoped, but correct and welcome): run_pipeline() and _process_file() also picked up Raises:
+  FatalPipelineError docstring sections of their own (previously only _process_scene had one) - accurate,
+  since both do have `except FatalPipelineError: raise` in their loops, so it does propagate out of them too.
+  Full suite re-run after the change: 115/115 passing.
+  Item 1 (error handling & robustness) is now fully closed - both the original QC-figure resilience design
+  and this symmetric summary-figure gap are implemented and verified.
 
 2. logging & observability   <- print() -> logger conversion done, all known items closed
 - DONE (confirmed still true 2026-07-30): configure_logging() is called from cli.py's main() before
@@ -222,12 +285,40 @@ raise wiring existed when those docstrings were originally written.
   scene_df from returning). Explicitly chosen as full coverage in this pass, not just the new resilience
   behavior, given the module's size and that it's never been touched - a bigger effort than item 1's own
   implementation, worth treating as its own follow-on pass once item 1 lands.
+  IN PROGRESS 2026-09-01: test_qc_figures.py under construction, working through the scope above
+  section by section (skeleton for every section - SpotData/ImageData, all 6 panels, all 3 figure
+  builders - already laid out as empty classes). SpotData/ImageData section DONE first (11 tests,
+  learning-mode - Claude reviewed/explained only, user wrote every test), all passing, 126 tests total
+  suite-wide. Two real bugs in qc_figures.py found and fixed while writing these tests (not just test
+  coverage - actual source fixes):
+    - SpotData.__post_init__: x/y/z/x_um/y_um/z_um are field(init=False) with no default, and were only
+      ever assigned inside `if self.has_spots:` - so when has_spots=False, those six attributes didn't
+      exist at all (not None), contradicting the docstring's `np.ndarray | None` contract. Confirmed via
+      repr() on such an instance raising AttributeError (dataclass-generated __repr__ touches every
+      field). Fixed: added an `else:` branch in __post_init__ assigning all six to None. No caller
+      changes needed - every existing caller already checked `has_spots and x is not None` with
+      short-circuit `and`, so this was latent, not yet triggered in production.
+    - Same class of bug, second instance: even when has_spots=True, if is_3d=False, z_um was never
+      assigned (only set inside the is_3d branch). Fixed: added `self.z_um = None` in the is_3d=False
+      branch (None, not zeros, since z_um isn't meaningful in 2D mode - _panel_spotmap only reads it
+      inside its own `if spots.is_3d:` check).
+  Testing/technique notes worth remembering for the remaining sections:
+    - pytest.approx() rejects nested list-of-lists (e.g. a 2D array's .tolist() result) - use it
+      directly on the numpy array instead of calling .tolist() first; reserve .tolist() for exact
+      integer-array equality (labels, pixel indices) where plain == is correct and stricter.
+    - np.round uses round-half-to-even ("banker's rounding"), not round-half-up - worth an explicit
+      test (SpotData.test_rounding_uses_round_half_to_even) so a future refactor to plain round()
+      doesn't silently change behavior at exactly .5 boundaries.
+  Still open: all 6 _panel_* classes and all 3 figure-builder classes are still empty `pass` stubs -
+  next up per today's session plan.
 - everything else has real coverage: test_run_pipeline.py (12, real PipelineConfig fixtures as of 2026-07-29
   - see item 5), test_model_bundle.py (14 as of 2026-07-30, up from 8 - flag-wins precedence coverage added,
   see item 5), test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7),
   test_assigment.py (5), test_config.py (44 as of 2026-07-28, up from 4 - full PipelineConfig schema
-  coverage, see item 5), test_cli.py (2), test_utils.py (1 parametrized, 13 cases). 113 tests total as of
-  2026-07-30.
+  coverage, see item 5), test_cli.py (2), test_utils.py (1 parametrized, 13 cases). 126 tests total as of
+  2026-09-01 (115 as of 2026-07-30's exception-taxonomy work, item 1 above, +11 test_qc_figures.py
+  SpotData/ImageData coverage - see IN PROGRESS note above; the "113" figure in this paragraph's opening
+  line is stale, predates the 2026-07-30 FatalPipelineError test additions).
 - DONE 2026-07-27: scene/file isolation tests added (TestProcessFile.test_handles_corrupted_scene,
   TestRunPipeline.test_handles_corrupted_file) - see item 1
 
