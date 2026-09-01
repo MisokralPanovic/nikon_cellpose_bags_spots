@@ -1,14 +1,25 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
+from pytest_mock import MockerFixture
 
+from spot_detector.exceptions import FatalPipelineError
 from spot_detector.qc_figures import (
     ImageData,
     SpotData,
+    _panel_segemntation,
+    _panel_spot_detection,
 )
 
 # =====================================================================
 # Fixtures
 # =====================================================================
+
+
+@pytest.fixture
+def ax(mocker: MockerFixture):
+    return mocker.MagicMock()
 
 
 # =====================================================================
@@ -172,11 +183,176 @@ class TestImageData:
 
 
 class TestPanelSegemntation:
-    pass
+    def test_draws_seg_image_only_when_no_masks(self, ax):
+        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=None)
+
+        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+
+        assert ax.imshow.call_count == 1
+        _, kwargs = ax.imshow.call_args
+        assert kwargs["cmap"] == "gray"
+
+    def test_draw_mask_overlay_when_masks_present(self, ax):
+        masks_2d = np.array([[0, 1], [2, 0]])
+        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=masks_2d)
+
+        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+
+        assert ax.imshow.call_count == 2
+        _, overlay_kwargs = ax.imshow.call_args_list[1]
+        assert overlay_kwargs["alpha"] == 0.3
+        assert overlay_kwargs["cmap"] == "tab10"
+        assert overlay_kwargs["vmax"] == 2
+
+    def test_skips_mask_overlay_when_masks_present_but_all_zero(self, ax):
+        # masks_2d is not None, but no object survived (all background) - the code
+        # checks masks_2d.max() > 0, not just "is not None"
+        images = SimpleNamespace(
+            seg_inv_norm=np.zeros((2, 2)), masks_2d=np.zeros((2, 2))
+        )
+
+        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+
+        assert ax.imshow.call_count == 1
+
+    def test_always_add_scalebar_title_and_axis_off(self, ax):
+        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=None)
+
+        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+
+        ax.add_artist.assert_called_once()
+        ax.set_title.assert_called_once_with("StDev Projection + Masks")
+        ax.axis.assert_called_once_with("off")
+
+    def test_render_failure_falls_back_to_placeholder(self, ax):
+        ax.imshow.side_effect = RuntimeError("boom")
+        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=None)
+
+        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+
+        ax.text.assert_called_once()
+        assert ax.text.call_args[0][2] == "Failed to render"
+        # code after the try/except is unconditional - still runs after a caught failure
+        ax.add_artist.assert_called_once()
+
+    def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+        ax.imshow.side_effect = FatalPipelineError("unrecoverable")
+        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=None)
+
+        with pytest.raises(FatalPipelineError):
+            _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+
+        # early exit: the scalebar/title/axis code after the try/except never runs
+        ax.add_artist.assert_not_called()
 
 
 class TestPanelSpotDetection:
-    pass
+    def test_no_spots_only_draws_background_image(self, ax):
+        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
+        spots = SimpleNamespace(has_spots=False)
+        spot_labels = np.zeros((2, 2))
+
+        _panel_spot_detection(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=spot_labels,
+        )
+
+        assert ax.imshow.call_count == 1
+        ax.scatter.assert_not_called()
+
+    def test_defensive_guard_skips_scatter_when_x_or_y_is_none(self, ax):
+        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
+        spots = SimpleNamespace(has_spots=True, x=None, y=None)
+        spot_labels = np.zeros((2, 2))
+
+        _panel_spot_detection(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=spot_labels,
+        )
+
+        ax.scatter.assert_not_called()
+
+    def test_splits_spots_by_inside_vs_background(self, ax):
+        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
+        spots = SimpleNamespace(
+            has_spots=True, x=np.array([1, 2, 3, 4]), y=np.array([10, 20, 30, 40])
+        )
+        spot_labels = np.array([0, 1, 0, 2])  # spots 0,2 background; 1,3 assigned
+
+        _panel_spot_detection(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=spot_labels,
+        )
+
+        assert ax.scatter.call_count == 2
+
+        bg_args, bg_kwargs = ax.scatter.call_args_list[0]
+        assert bg_args[0].tolist() == [1, 3]
+        assert bg_args[1].tolist() == [10, 30]
+        assert bg_kwargs["color"] == "gray"
+        assert bg_kwargs["alpha"] == 0.5
+
+        in_args, in_kwargs = ax.scatter.call_args_list[1]
+        assert in_args[0].tolist() == [2, 4]
+        assert in_args[1].tolist() == [20, 40]
+        assert in_kwargs["c"].tolist() == [1, 2]
+        assert in_kwargs["cmap"] == "tab10"
+
+    def test_always_add_title_and_axis_off(self, ax):
+        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
+        spots = SimpleNamespace(has_spots=False)
+        spot_labels = np.zeros((2, 2))
+
+        _panel_spot_detection(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=spot_labels,
+        )
+
+        ax.set_title.assert_called_once_with("Spot Detections (StDev Proj)")
+        ax.axis.assert_called_once_with("off")
+
+    def test_render_failure_falls_back_to_placeholder(self, ax):
+        ax.imshow.side_effect = RuntimeError("boom")
+        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
+        spots = SimpleNamespace(has_spots=True, x=np.zeros((2, 2)), y=np.zeros((2, 2)))
+        spot_labels = np.zeros((2, 2))
+
+        _panel_spot_detection(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=spot_labels,
+        )
+
+        ax.text.assert_called_once()
+        assert ax.text.call_args[0][2] == "Failed to render"
+        # code after the try/except is unconditional - still runs after a caught failure
+        ax.set_title.assert_called_once()
+
+    def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+        ax.imshow.side_effect = FatalPipelineError("unrecoverable")
+        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
+        spots = SimpleNamespace(has_spots=True, x=np.zeros((2, 2)), y=np.zeros((2, 2)))
+        spot_labels = np.zeros((2, 2))
+
+        with pytest.raises(FatalPipelineError):
+            _panel_spot_detection(
+                ax=ax,
+                images=images,  # type: ignore[arg-type]
+                spots=spots,  # type: ignore[arg-type]
+                spot_labels=spot_labels,
+            )
+
+        # early exit: the title/axis code after the try/except never runs
+        ax.set_title.assert_not_called()
 
 
 class TestPanelFlow:

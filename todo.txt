@@ -309,8 +309,61 @@ DONE 2026-08-26 (design agreed in chat, then implemented by user - learning-mode
     - np.round uses round-half-to-even ("banker's rounding"), not round-half-up - worth an explicit
       test (SpotData.test_rounding_uses_round_half_to_even) so a future refactor to plain round()
       doesn't silently change behavior at exactly .5 boundaries.
-  Still open: all 6 _panel_* classes and all 3 figure-builder classes are still empty `pass` stubs -
-  next up per today's session plan.
+  Panel-testing conventions established (apply to all remaining panel classes):
+    - Axes is mocked (`ax` fixture in the file's Fixtures section, returns mocker.MagicMock()), not a
+      real matplotlib Axes - fast, and directly verifies "was this called with the right data" via
+      call_args/call_args_list, matching how test_detection.py already mocks the Spotiflow model.
+    - images/spots inputs are SimpleNamespace stand-ins, not real ImageData/SpotData instances - only
+      set the specific attributes the panel under test actually reads, decoupling panel tests from the
+      dataclasses' own correctness (already covered separately by TestImageData/TestSpotData).
+    - a `# type: ignore[arg-type]` comment is needed on every panel call site, since SimpleNamespace
+      isn't nominally an ImageData/SpotData - cosmetic only, this repo has no mypy/pyright gate (checked
+      pyproject.toml + .pre-commit-config.yaml, only ruff runs), so it never affects CI or commits.
+    - every panel test class covers: happy-path branches, `except FatalPipelineError: raise` propagates
+      uncaught (and any code after the try/except block does NOT run - proven via an
+      assert_not_called() on that trailing code), and a generic Exception falls back to the "Failed to
+      render" placeholder AND still runs the code after the try/except (contrast with the FatalPipelineError
+      case proves the two except branches behave differently, not just that neither crashes the test).
+  TestPanelSegemntation DONE (6 tests) and TestPanelSpotDetection DONE (6 tests) - both learning-mode,
+  Claude reviewed/explained only. 138 tests total suite-wide as of 2026-09-01.
+
+  BUG FOUND 2026-09-01, NOT YET FIXED (surfaced while scoping TestFlowToRgb/TestPanelFlow - work paused
+  here, resume next session): _flow_to_rgb's channel-index comments/docstring AND its 3D-branch code
+  disagree with Spotiflow's real flow-field layout. Verified against ground truth in Spotiflow's own
+  installed source (not guessed) - .venv/lib/python3.12/site-packages/spotiflow/utils/peaks.py,
+  flow_to_vector_2d/flow_to_vector_3d, whose docstrings state the real channel order explicitly:
+    flow_to_vector_2d: "3d flow (z',y',x')" -> `z, y, x = flow.transpose(2, 0, 1)` - real 2D layout is
+      [stereographic, y, x] (stereo FIRST, not last).
+    flow_to_vector_3d: "4d flow (w',z',y',x')" -> `w, z, y, x = flow.transpose(3, 0, 1, 2)` - real 3D
+      layout is [stereographic, z, y, x] (stereo FIRST, not last).
+  qc_figures.py's _flow_to_rgb docstring (and the inline comments above each branch) claim the OPPOSITE
+  order - [fy, fx, stereographic] for 2D, [fz, fy, fx, stereographic] for 3D (stereo LAST). Comparing
+  against the actual code in each branch:
+    - 2D branch (`fy = flow_data[..., 1]`, `fx = flow_data[..., 2]`): CODE IS CORRECT (real layout
+      [stereo, y, x] means index1=y, index2=x, exactly what the code reads) - only the
+      docstring/comment is wrong, purely cosmetic, no functional bug.
+    - 3D branch (`fy_vol = flow_data[..., 1]`, `fx_vol = flow_data[..., 2]`): CODE IS ACTUALLY WRONG.
+      Real layout [stereo, z, y, x] means index1=z (not y!), index2=y (not x!), and the true x-component
+      lives at index3, which the code never reads at all. The 3D flow panel is currently rendering the
+      Z and Y flow components mislabeled as Y and X, and silently ignores the real X-component entirely.
+      This is a real rendering bug (wrong data shown), not just a docstring mismatch.
+  FIX (not yet applied): shift the 3D branch's indices by one - `fy_vol = flow_data[..., 2]`,
+  `fx_vol = flow_data[..., 3]` - and correct both docstrings/comments to state the real order
+  ([stereographic, y, x] for 2D, [stereographic, z, y, x] for 3D, stereo first not last in both).
+  NEXT SESSION: apply the 3D indexing fix + docstring corrections in qc_figures.py, THEN write
+  TestFlowToRgb (real arrays, no mocking, per the earlier design decision to separate it from
+  TestPanelFlow) verifying the corrected 2D/3D channel selection against Spotiflow's real layout,
+  THEN TestPanelFlow itself (mocked Axes + mocked _flow_to_rgb for the success path, per the same
+  earlier decision) covering its 5 branches (None flow_details / heatmap fallback 2D+3D / non-ndarray
+  flow / success / render-failure-in-_flow_to_rgb) plus the usual FatalPipelineError-propagates test.
+
+  test_qc_figures.py state as of 2026-09-01 (for picking this back up next session): SpotData (4 tests)
+  and ImageData (7 tests) sections fully done. TestPanelSegemntation (6 tests) and TestPanelSpotDetection
+  (6 tests) fully done. TestPanelFlow, TestPanelZDistribution, TestPanelECFD, TestPanelSpotmap still
+  empty `pass` stubs - TestPanelFlow blocked on the bug fix above. TestMakeQCFigure,
+  TestMakeRunSummaryFigure, TestMakeSceneSummaryFigure (the 3 figure-builder classes) also still empty
+  `pass` stubs, not yet scoped/discussed in detail beyond the original item-4 scoping paragraph above.
+  23 tests in test_qc_figures.py so far, 138 total suite-wide.
 - everything else has real coverage: test_run_pipeline.py (12, real PipelineConfig fixtures as of 2026-07-29
   - see item 5), test_model_bundle.py (14 as of 2026-07-30, up from 8 - flag-wins precedence coverage added,
   see item 5), test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7),
