@@ -215,6 +215,65 @@ DONE 2026-08-26 (design agreed in chat, then implemented by user - learning-mode
   root (real handlers attached to the root logger via the unmocked call); after, nothing leaks
 - record which config produced which output CSV - done (cli.py logs resolved config on load, once wired up)
 
+DONE 2026-09-02: investigated and fixed a real run's log file being 99.2% unreadable noise (60,768 of
+61,237 lines in one run) plus a garbled/duplicated-looking terminal progress bar. Both root-caused with
+hard evidence (grep'd line counts/timestamps, read tqdm's actual installed source), not guessed at:
+  - matplotlib.font_manager DEBUG spam (the 60,768 lines): configure_logging() sets root.setLevel(DEBUG)
+    with file_handler also at DEBUG (cli.py), so ANY library using stdlib `logging` - not just
+    spot_detector.* - gets captured. matplotlib's font_manager logs one DEBUG line per installed font
+    it scores, the FIRST time each distinct font spec (title size, legend size, bold suptitle, etc.) is
+    requested - confirmed via grep this is a near-total one-time cost (~15s window at the very start of
+    the run, one tiny follow-up burst later for a new bold/size-13 spec). A commented-out
+    `# logging.getLogger("matplotlib").setLevel(logging.WARNING)` was already sitting in cli.py,
+    unused - someone had already spotted this fix and never enabled it.
+  - Related: a one-time "Skipping backend candidate 'macosx'... ImportError" traceback - matplotlib
+    auto-probing for a GUI backend on first pyplot use, since nothing ever calls matplotlib.use(...).
+    Harmless (falls through to qtagg) but pure overhead for a pipeline that only ever calls
+    savefig()+close(), never show() - also a real risk on a headless cluster node with no working GUI
+    backend at all (relevant to item 3 below).
+  FIX applied (learning-mode, Claude described, user applied, both verified empirically after):
+    (a) cli.py: uncommented+enabled the matplotlib silence line, added the same for `fsspec` (27
+        `open file` DEBUG lines, smaller but same category) - `logging.getLogger("matplotlib").
+        setLevel(logging.WARNING)` / `logging.getLogger("fsspec").setLevel(logging.WARNING)`.
+    (b) qc_figures.py: added `import matplotlib; matplotlib.use("Agg")` before `import matplotlib.
+        pyplot as plt` - forces the headless backend explicitly, eliminates the GUI-probe traceback
+        entirely (verified: `matplotlib.get_backend()` returns "Agg", zero probe output on import).
+  Verified on a full real 3-file/21-scene rerun: log file dropped from 61,237 lines (single file) to
+  381 lines (all three files) - a 99%+ reduction, confirmed by direct before/after comparison.
+  SEPARATE bug found and fixed in the same investigation - tqdm progress bar duplication/garbling,
+  reported as "multiplied at the start, fine by the end": root-caused by reading tqdm.contrib.logging's
+  actual installed source (not guessed). `logging_redirect_tqdm()` finds the real console StreamHandler
+  (correctly set to INFO) and substitutes a new `_TqdmLoggingHandler` for the duration of its `with`
+  block - it copies the original handler's formatter and stream, but NEVER copies its level. The new
+  handler defaults to NOTSET (accepts everything), so every DEBUG-level message (Scene N/M,
+  Segmenting..., Detecting spots..., [QC] Saved summary) that should be console-filtered suddenly prints
+  to the terminal for as long as the tqdm context is active - this is an upstream tqdm quirk/gap, not a
+  spot_detector bug, but it manifests here as unwanted terminal verbosity. This directly explains the
+  reported "duplication": each of those 6 now-unfiltered messages per scene forces a bar redraw, and
+  scene 0's bar has no rate/ETA data yet (first iteration), so all 6 redraws print the identical
+  `0%|  | 0/6 [00:0X<?, ?it/s]` text - looks exactly like a stuck/duplicated line. From scene 1 onward
+  the same redraw-per-log-line mechanism continues (nothing structurally changes) but now shows real,
+  varying percentages/ETAs each time, so it reads as a normally-updating bar instead - "bad at the
+  start, fine by the end" is this artifact, not a warm-up effect.
+  FIX applied (run_pipeline.py, learning-mode, Claude described, user applied): immediately after
+  entering `with logging_redirect_tqdm():` in _process_file's scene loop, re-assert the console
+  handler's level explicitly, since logging_redirect_tqdm won't do it:
+    for h in logging.root.handlers:
+        if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+            h.setLevel(logging.INFO)
+  VERIFIED via a real before/after terminal capture comparison (captured with `2>&1` - console_handler
+  defaults to stderr, and the FIRST capture attempt used stdout-only redirection and came back empty,
+  a separate minor gotcha worth remembering for next time): scene 0's console redraws dropped from 6
+  down to 2 (just the two genuinely-INFO messages, Found N object(s)/Detected N spot(s)), matching
+  pre-investigation console verbosity exactly, while the LOG FILE (confirmed by reading it directly)
+  still has full DEBUG detail (Scene N/M, Segmenting..., Detecting spots..., Saved summary all present) -
+  the fix is surgical, console-only, no loss of file-logged detail. Full suite re-run clean: 138/138.
+  One cosmetic thing NOT a bug, noted so it isn't re-investigated later: a one-time PyTorch
+  `UserWarning: Sparse invariant checks are implicitly disabled...` from inside cellpose/dynamics.py can
+  visually collide with the tqdm bar in a captured transcript - this comes from Python's `warnings`
+  module, which writes straight to stderr and bypasses `logging` entirely, so it's unaffected by any of
+  the above and not something to chase further (fires once per process, harmless).
+
 3. cluster / parallelization readiness
 - DONE (confirmed still true 2026-07-30): segmentation.use_gpu is read - utils.py's _load_cellpose passes
   gpu=config.segmentation.use_gpu to CellposeModel (fixed 2026-07-27, updated to attribute access by the
@@ -347,23 +406,37 @@ DONE 2026-08-26 (design agreed in chat, then implemented by user - learning-mode
       lives at index3, which the code never reads at all. The 3D flow panel is currently rendering the
       Z and Y flow components mislabeled as Y and X, and silently ignores the real X-component entirely.
       This is a real rendering bug (wrong data shown), not just a docstring mismatch.
-  FIX (not yet applied): shift the 3D branch's indices by one - `fy_vol = flow_data[..., 2]`,
-  `fx_vol = flow_data[..., 3]` - and correct both docstrings/comments to state the real order
-  ([stereographic, y, x] for 2D, [stereographic, z, y, x] for 3D, stereo first not last in both).
-  NEXT SESSION: apply the 3D indexing fix + docstring corrections in qc_figures.py, THEN write
-  TestFlowToRgb (real arrays, no mocking, per the earlier design decision to separate it from
-  TestPanelFlow) verifying the corrected 2D/3D channel selection against Spotiflow's real layout,
-  THEN TestPanelFlow itself (mocked Axes + mocked _flow_to_rgb for the success path, per the same
-  earlier decision) covering its 5 branches (None flow_details / heatmap fallback 2D+3D / non-ndarray
-  flow / success / render-failure-in-_flow_to_rgb) plus the usual FatalPipelineError-propagates test.
+  FIXED 2026-09-02 AND EMPIRICALLY VERIFIED against real data (not just source-reading): 3D branch
+  indices shifted (`fy_vol = flow_data[..., 2]`, `fx_vol = flow_data[..., 3]`), both docstrings/comments
+  corrected to state the real order ([stereographic, y, x] for 2D, [stereographic, z, y, x] for 3D,
+  stereo first not last in both) - learning-mode, Claude described the exact edit, user applied it.
+  Verification method (src/flow_details.py, extended for this purpose - see below): ran real detection
+  on data/allON_HP.nd2 scene 1 in both modes, then compared _flow_to_rgb's (now-fixed) fy/fx channel
+  choice against Spotiflow's own decoded ground truth, `details.subpix` (= flow_component * s, where
+  s = sigma/(1+z'+eps) is always positive, so a correct channel choice must SIGN-agree with subpix at
+  nearly every pixel - a wrong choice would show ~50% coin-flip agreement instead). Result: 100% sign
+  agreement for both y and x, in both 2D (was already correct) and 3D (previously broken, now fixed)
+  modes - the strongest available confirmation short of a full stereographic re-derivation.
+  Real shapes observed along the way (useful reference, not part of the bug itself): 2D details.flow
+  (2048, 1600, 3), details.subpix (2048, 1600, 2); 3D details.flow (15, 1024, 800, 4), details.subpix
+  (15, 1024, 800, 3) - note the 3D run's spatial dims come back downsampled vs the 2D run on the same
+  image (Spotiflow's own internal downsample_factors for that model config, unrelated to this bug).
+  NEXT SESSION: write TestFlowToRgb (real arrays, no mocking, per the earlier design decision to
+  separate it from TestPanelFlow) verifying the corrected 2D/3D channel selection, THEN TestPanelFlow
+  itself (mocked Axes + mocked _flow_to_rgb for the success path, per the same earlier decision)
+  covering its 5 branches (None flow_details / heatmap fallback 2D+3D / non-ndarray flow / success /
+  render-failure-in-_flow_to_rgb) plus the usual FatalPipelineError-propagates test.
 
-  test_qc_figures.py state as of 2026-09-01 (for picking this back up next session): SpotData (4 tests)
+  test_qc_figures.py state as of 2026-09-02 (for picking this back up next session): SpotData (4 tests)
   and ImageData (7 tests) sections fully done. TestPanelSegemntation (6 tests) and TestPanelSpotDetection
-  (6 tests) fully done. TestPanelFlow, TestPanelZDistribution, TestPanelECFD, TestPanelSpotmap still
-  empty `pass` stubs - TestPanelFlow blocked on the bug fix above. TestMakeQCFigure,
+  (6 tests) fully done. The _flow_to_rgb bug fix above is now DONE and verified, so TestPanelFlow is no
+  longer blocked. TestPanelFlow, TestPanelZDistribution, TestPanelECFD, TestPanelSpotmap, and a new
+  (not yet created) TestFlowToRgb class are all still to write. TestMakeQCFigure,
   TestMakeRunSummaryFigure, TestMakeSceneSummaryFigure (the 3 figure-builder classes) also still empty
   `pass` stubs, not yet scoped/discussed in detail beyond the original item-4 scoping paragraph above.
-  23 tests in test_qc_figures.py so far, 138 total suite-wide.
+  23 tests in test_qc_figures.py so far, 138 total suite-wide (unchanged by this session's bug fix -
+  it touched src/spot_detector/qc_figures.py and src/flow_details.py, a standalone scratch/diagnostic
+  script outside the test suite, not tests/test_qc_figures.py itself).
 - everything else has real coverage: test_run_pipeline.py (12, real PipelineConfig fixtures as of 2026-07-29
   - see item 5), test_model_bundle.py (14 as of 2026-07-30, up from 8 - flag-wins precedence coverage added,
   see item 5), test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7),

@@ -3,7 +3,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
 
+import matplotlib
 import matplotlib.colors as mcolors
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -239,8 +242,8 @@ def _flow_to_rgb(flow_data: np.ndarray) -> np.ndarray:
     """Convert a Spotiflow flow field to a displayable RGB image in [0, 1].
 
     Spotiflow `predict()` returns `details.flow` in **channels-last** layout:
-        2D model → (Y, X, 3)    — last dim = [fy, fx, stereographic_component]
-        3D model → (Z, Y, X, 4) — last dim = [fz, fy, fx, stereographic_component]
+        2D model → (Y, X, 3)    — last dim = [stereographic_component, fy, fx]
+        3D model → (Z, Y, X, 4) — last dim = [stereographic_component, fz, fy, fx]
 
     Both cases are rendered as an HSV hue-wheel image where flow direction maps
     to hue and magnitude maps to brightness. For 3D, the Z-slice with the
@@ -258,18 +261,18 @@ def _flow_to_rgb(flow_data: np.ndarray) -> np.ndarray:
     flow_data = flow_data.astype(np.float32)
 
     # Case 1: 2D channels-last (Y, X, 3) — actual Spotiflow 2D output
-    # Last dim: [fy, fx, stereographic]. Use fy/fx for the hue-wheel; ignore
-    # the 3rd stereographic component.
+    # Last dim: [stereographic, fy, fx]. Use fy/fx for the hue-wheel; ignore
+    # the 1st stereographic component.
     if flow_data.ndim == 3 and flow_data.shape[-1] >= 3:
         fy = flow_data[..., 1]  # (Y, X)
         fx = flow_data[..., 2]  # (Y, X)
 
     # Case 2: 3D channels-last (Z, Y, X, 4) — actual Spotiflow 3D output
-    # Last dim: [fz, fy, fx, stereographic]. Pick the Z-slice with the
+    # Last dim: [stereographic, fz, fy, fx]. Pick the Z-slice with the
     # highest mean XY flow magnitude and render the XY components.
     elif flow_data.ndim == 4 and flow_data.shape[-1] >= 3:
-        fy_vol = flow_data[..., 1]  # (Z, Y, X)
-        fx_vol = flow_data[..., 2]  # (Z, Y, X)
+        fy_vol = flow_data[..., 2]  # (Z, Y, X)
+        fx_vol = flow_data[..., 3]  # (Z, Y, X)
         xy_mag = np.sqrt(fy_vol**2 + fx_vol**2)  # (Z, Y, X)
         best_z = int(np.argmax(xy_mag.mean(axis=(1, 2))))  # scalar
         fy = fy_vol[best_z]  # (Y, X)

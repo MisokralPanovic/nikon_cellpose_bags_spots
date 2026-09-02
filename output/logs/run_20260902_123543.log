@@ -1,0 +1,149 @@
+2026-09-02 12:35:43,377 INFO     spot_detector.cli: Loaded config from configs/config.yml: mode=ModeConfig(do_3d=False) paths=PathsConfig(raw_data_dir=PosixPath('data'), out_dir=PosixPath('output')) channels=ChannelConfig(segmentation_image=0, spot_image=1) segmentation=SegmentationConfig(use_default_model=False, cellpose_model_path=PosixPath('../_pipeline_assets/cellpose_models/cpsam_pseudo3d_4x_20260506'), use_gpu=True, bin_factor=4, stitch_threshold=0.4) detection=DetectionConfig(use_default_model=False, spotiflow_model_path=PosixPath('../_pipeline_assets/bag_spot_model'), prob_thresh=0.3, min_distance=1)
+2026-09-02 12:35:43,377 INFO     spot_detector.run_pipeline: === Pipeline starting | mode=2D ===
+2026-09-02 12:35:43,377 INFO     spot_detector.run_pipeline: Data folder: /home/michalv/Analysis/nikon_cellpose_bags_spots/data
+2026-09-02 12:35:43,377 DEBUG    spot_detector.utils: Loading custom Cellpose model...
+2026-09-02 12:35:45,749 INFO     cellpose.models: >>>> loading model ../_pipeline_assets/cellpose_models/cpsam_pseudo3d_4x_20260506
+2026-09-02 12:35:46,574 DEBUG    spot_detector.utils: Loading Spotiflow model...
+2026-09-02 12:35:47,047 INFO     spot_detector.utils: Loaded custom Spotiflow model from: ../_pipeline_assets/bag_spot_model
+2026-09-02 12:35:47,047 WARNING  spot_detector.utils: Mode conflict: model is 3D but pipeline is 2D. Overriding with synth_complex...
+2026-09-02 12:35:47,047 INFO     spotiflow.model.spotiflow: Loading pretrained model: synth_complex
+2026-09-02 12:35:47,606 INFO     spot_detector.run_pipeline: --- Processing: allON_HP.nd2 ---
+2026-09-02 12:35:47,608 INFO     spot_detector.run_pipeline: Scenes: 6
+2026-09-02 12:35:47,609 DEBUG    spot_detector.run_pipeline: Scene 00 / 5
+2026-09-02 12:35:48,972 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:35:50,574 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:35:50,575 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:35:52,066 INFO     spot_detector.run_pipeline: Detected 866 spot(s), 866 assigned
+2026-09-02 12:36:03,792 DEBUG    spot_detector.qc_figures: [QC] Saved summary: allON_HP_S00_2D_qc.png
+2026-09-02 12:36:03,794 DEBUG    spot_detector.run_pipeline: Scene 01 / 5
+2026-09-02 12:36:05,188 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:36:06,293 INFO     spot_detector.run_pipeline: Found 2 object(s) after border clearing
+2026-09-02 12:36:06,294 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:36:07,102 INFO     spot_detector.run_pipeline: Detected 1822 spot(s), 1822 assigned
+2026-09-02 12:36:16,580 DEBUG    spot_detector.qc_figures: [QC] Saved summary: allON_HP_S01_2D_qc.png
+2026-09-02 12:36:16,583 DEBUG    spot_detector.run_pipeline: Scene 02 / 5
+2026-09-02 12:36:17,667 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:36:18,866 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:36:18,867 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:36:19,678 INFO     spot_detector.run_pipeline: Detected 808 spot(s), 808 assigned
+2026-09-02 12:36:29,588 DEBUG    spot_detector.qc_figures: [QC] Saved summary: allON_HP_S02_2D_qc.png
+2026-09-02 12:36:29,598 DEBUG    spot_detector.run_pipeline: Scene 03 / 5
+2026-09-02 12:36:30,657 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:36:31,675 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:36:31,675 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:36:32,479 INFO     spot_detector.run_pipeline: Detected 806 spot(s), 806 assigned
+2026-09-02 12:36:42,866 DEBUG    spot_detector.qc_figures: [QC] Saved summary: allON_HP_S03_2D_qc.png
+2026-09-02 12:36:42,869 DEBUG    spot_detector.run_pipeline: Scene 04 / 5
+2026-09-02 12:36:43,923 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:36:45,064 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:36:45,065 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:36:45,846 INFO     spot_detector.run_pipeline: Detected 849 spot(s), 849 assigned
+2026-09-02 12:36:58,406 DEBUG    spot_detector.qc_figures: [QC] Saved summary: allON_HP_S04_2D_qc.png
+2026-09-02 12:36:58,409 DEBUG    spot_detector.run_pipeline: Scene 05 / 5
+2026-09-02 12:37:01,245 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:37:02,879 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:37:02,879 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:37:03,706 INFO     spot_detector.run_pipeline: Detected 704 spot(s), 704 assigned
+2026-09-02 12:37:16,152 DEBUG    spot_detector.qc_figures: [QC] Saved summary: allON_HP_S05_2D_qc.png
+2026-09-02 12:37:16,162 INFO     spot_detector.run_pipeline: Saved CSV: allON_HP_objects_2D.csv  (7 rows)
+2026-09-02 12:37:17,904 INFO     spot_detector.qc_figures: [QC] Saved scene summary: allON_HP_summary_2D.png
+2026-09-02 12:37:17,927 INFO     spot_detector.run_pipeline: --- Processing: P_None_No.nd2 ---
+2026-09-02 12:37:17,929 INFO     spot_detector.run_pipeline: Scenes: 10
+2026-09-02 12:37:17,929 DEBUG    spot_detector.run_pipeline: Scene 00 / 9
+2026-09-02 12:37:19,237 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:37:20,744 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:37:20,744 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:37:21,631 INFO     spot_detector.run_pipeline: Detected 16 spot(s), 8 assigned
+2026-09-02 12:37:36,298 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S00_2D_qc.png
+2026-09-02 12:37:36,301 DEBUG    spot_detector.run_pipeline: Scene 01 / 9
+2026-09-02 12:37:37,428 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:37:38,682 INFO     spot_detector.run_pipeline: Found 3 object(s) after border clearing
+2026-09-02 12:37:38,683 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:37:39,578 INFO     spot_detector.run_pipeline: Detected 435 spot(s), 404 assigned
+2026-09-02 12:37:54,498 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S01_2D_qc.png
+2026-09-02 12:37:54,501 DEBUG    spot_detector.run_pipeline: Scene 02 / 9
+2026-09-02 12:37:56,030 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:37:57,289 INFO     spot_detector.run_pipeline: Found 2 object(s) after border clearing
+2026-09-02 12:37:57,289 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:37:58,134 INFO     spot_detector.run_pipeline: Detected 302 spot(s), 297 assigned
+2026-09-02 12:38:08,364 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S02_2D_qc.png
+2026-09-02 12:38:08,367 DEBUG    spot_detector.run_pipeline: Scene 03 / 9
+2026-09-02 12:38:09,477 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:38:10,607 INFO     spot_detector.run_pipeline: Found 3 object(s) after border clearing
+2026-09-02 12:38:10,608 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:38:11,506 INFO     spot_detector.run_pipeline: Detected 543 spot(s), 451 assigned
+2026-09-02 12:38:21,971 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S03_2D_qc.png
+2026-09-02 12:38:21,974 DEBUG    spot_detector.run_pipeline: Scene 04 / 9
+2026-09-02 12:38:23,072 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:38:24,368 INFO     spot_detector.run_pipeline: Found 2 object(s) after border clearing
+2026-09-02 12:38:24,368 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:38:25,232 INFO     spot_detector.run_pipeline: Detected 331 spot(s), 255 assigned
+2026-09-02 12:38:35,421 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S04_2D_qc.png
+2026-09-02 12:38:35,424 DEBUG    spot_detector.run_pipeline: Scene 05 / 9
+2026-09-02 12:38:36,618 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:38:38,023 INFO     spot_detector.run_pipeline: Found 3 object(s) after border clearing
+2026-09-02 12:38:38,024 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:38:38,967 INFO     spot_detector.run_pipeline: Detected 442 spot(s), 432 assigned
+2026-09-02 12:38:54,068 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S05_2D_qc.png
+2026-09-02 12:38:54,072 DEBUG    spot_detector.run_pipeline: Scene 06 / 9
+2026-09-02 12:38:55,216 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:38:56,646 INFO     spot_detector.run_pipeline: Found 4 object(s) after border clearing
+2026-09-02 12:38:56,646 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:38:57,523 INFO     spot_detector.run_pipeline: Detected 622 spot(s), 510 assigned
+2026-09-02 12:39:10,839 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S06_2D_qc.png
+2026-09-02 12:39:10,843 DEBUG    spot_detector.run_pipeline: Scene 07 / 9
+2026-09-02 12:39:13,007 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:39:14,854 INFO     spot_detector.run_pipeline: Found 2 object(s) after border clearing
+2026-09-02 12:39:14,854 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:39:15,751 INFO     spot_detector.run_pipeline: Detected 367 spot(s), 313 assigned
+2026-09-02 12:39:29,334 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S07_2D_qc.png
+2026-09-02 12:39:29,337 DEBUG    spot_detector.run_pipeline: Scene 08 / 9
+2026-09-02 12:39:30,996 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:39:32,429 INFO     spot_detector.run_pipeline: Found 2 object(s) after border clearing
+2026-09-02 12:39:32,430 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:39:33,329 INFO     spot_detector.run_pipeline: Detected 363 spot(s), 257 assigned
+2026-09-02 12:39:46,717 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S08_2D_qc.png
+2026-09-02 12:39:46,720 DEBUG    spot_detector.run_pipeline: Scene 09 / 9
+2026-09-02 12:39:47,777 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:39:49,047 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:39:49,048 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:39:49,913 INFO     spot_detector.run_pipeline: Detected 253 spot(s), 165 assigned
+2026-09-02 12:40:04,927 DEBUG    spot_detector.qc_figures: [QC] Saved summary: P_None_No_S09_2D_qc.png
+2026-09-02 12:40:04,930 INFO     spot_detector.run_pipeline: Saved CSV: P_None_No_objects_2D.csv  (23 rows)
+2026-09-02 12:40:07,252 INFO     spot_detector.qc_figures: [QC] Saved scene summary: P_None_No_summary_2D.png
+2026-09-02 12:40:07,327 INFO     spot_detector.run_pipeline: --- Processing: None_0.nd2 ---
+2026-09-02 12:40:07,328 INFO     spot_detector.run_pipeline: Scenes: 5
+2026-09-02 12:40:07,329 DEBUG    spot_detector.run_pipeline: Scene 00 / 4
+2026-09-02 12:40:08,479 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:40:09,810 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:40:09,811 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:40:10,766 INFO     spot_detector.run_pipeline: Detected 49 spot(s), 22 assigned
+2026-09-02 12:40:20,853 DEBUG    spot_detector.qc_figures: [QC] Saved summary: None_S00_2D_qc.png
+2026-09-02 12:40:20,855 DEBUG    spot_detector.run_pipeline: Scene 01 / 4
+2026-09-02 12:40:21,933 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:40:23,235 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:40:23,236 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:40:24,096 INFO     spot_detector.run_pipeline: Detected 45 spot(s), 28 assigned
+2026-09-02 12:40:33,886 DEBUG    spot_detector.qc_figures: [QC] Saved summary: None_S01_2D_qc.png
+2026-09-02 12:40:33,888 DEBUG    spot_detector.run_pipeline: Scene 02 / 4
+2026-09-02 12:40:34,935 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:40:36,245 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:40:36,246 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:40:37,112 INFO     spot_detector.run_pipeline: Detected 28 spot(s), 12 assigned
+2026-09-02 12:40:47,449 DEBUG    spot_detector.qc_figures: [QC] Saved summary: None_S02_2D_qc.png
+2026-09-02 12:40:47,452 DEBUG    spot_detector.run_pipeline: Scene 03 / 4
+2026-09-02 12:40:48,491 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:40:49,790 INFO     spot_detector.run_pipeline: Found 1 object(s) after border clearing
+2026-09-02 12:40:49,790 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:40:50,654 INFO     spot_detector.run_pipeline: Detected 49 spot(s), 19 assigned
+2026-09-02 12:41:01,695 DEBUG    spot_detector.qc_figures: [QC] Saved summary: None_S03_2D_qc.png
+2026-09-02 12:41:01,698 DEBUG    spot_detector.run_pipeline: Scene 04 / 4
+2026-09-02 12:41:03,439 DEBUG    spot_detector.run_pipeline: Segmenting (2D)...
+2026-09-02 12:41:04,815 INFO     spot_detector.run_pipeline: Found 2 object(s) after border clearing
+2026-09-02 12:41:04,816 DEBUG    spot_detector.run_pipeline: Detecting spots (2D)...
+2026-09-02 12:41:05,696 INFO     spot_detector.run_pipeline: Detected 28 spot(s), 12 assigned
+2026-09-02 12:41:19,372 DEBUG    spot_detector.qc_figures: [QC] Saved summary: None_S04_2D_qc.png
+2026-09-02 12:41:19,374 INFO     spot_detector.run_pipeline: Saved CSV: None_objects_2D.csv  (6 rows)
+2026-09-02 12:41:20,936 INFO     spot_detector.qc_figures: [QC] Saved scene summary: None_summary_2D.png
+2026-09-02 12:41:20,938 INFO     spot_detector.run_pipeline: Saved run CSV: _run_objects_2D.csv (36 rows, 3 condition(s))
+2026-09-02 12:41:22,363 INFO     spot_detector.qc_figures: [QC] Saved run summary: _run_summary_2D.png

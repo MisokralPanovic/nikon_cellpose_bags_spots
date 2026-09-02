@@ -157,6 +157,11 @@ def _process_file(
     logger.info(f"Scenes: {num_scenes}")
 
     with logging_redirect_tqdm():
+        for h in logging.root.handlers:
+            if isinstance(h, logging.StreamHandler) and not isinstance(
+                h, logging.FileHandler
+            ):
+                h.setLevel(logging.INFO)
         for scene in tqdm(range(num_scenes)):
             try:
                 img.set_scene(scene)

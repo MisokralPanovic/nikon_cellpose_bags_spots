@@ -27,7 +27,9 @@ def configure_logging(log_dir: Path, level=logging.INFO) -> None:
     root.addHandler(file_handler)
     root.addHandler(console_handler)
 
-    # logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("fsspec").setLevel(logging.WARNING)
+    logging.getLogger("cellpose.core").setLevel(logging.WARNING)
 
 
 def main():
