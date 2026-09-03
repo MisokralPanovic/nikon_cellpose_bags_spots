@@ -5,7 +5,43 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
-## 2026-09-03 — `TestPanelFlow`: mocking a helper you already tested, and making paired tests actually differ
+## 2026-09-03 (cont'd) — `TestPanelZDistribution`: nested classes, and a test that passes for the wrong reason
+
+**Session goal:** cover `_panel_z_distribution` — one function, but two fully independent `is_3d` branches
+(3D stacked histogram of spots-per-z-plane; 2D nearest-neighbour-distance histogram + KDE curve) plus a
+shared `has_spots=False` guard. I wrote every test; Claude advised.
+
+- **A test can go green while testing nothing you meant to test.** The 3D branch reads six-ish attributes
+  off `spots`/`images` inside its loop *before* anything observable happens. My first pass at the legend
+  test set only `has_spots` and `is_3d`. The loop hit `AttributeError` on `spots.z_um`, which the panel's
+  own `except Exception` swallows into an `ax.text("Failed to render")` placeholder — and since nothing in
+  the test asserted the legend *was* drawn, it passed. It was silently testing the error handler. The fix
+  is two-part: (1) a fixture with a *complete* minimal input set that actually reaches `ax.hist`, and
+  (2) `ax.text.assert_not_called()` on every happy-path test as a tripwire — it fails loudly the moment an
+  input is incomplete and the code falls into the `except`.
+- **Nested test classes are the right tool when one function has independent branches.** First use in this
+  repo. `class TestPanelZDistribution:` holds the shared-guard test at the top level, then
+  `class TestIs3dTrue:` / `class TestIs3dFalse:` inside. Keeps the "one top-level class per panel" mapping
+  intact, gives each branch its own `@pytest.fixture`, and pytest runs them as
+  `TestPanelZDistribution::TestIs3dTrue::test_...` with zero ceremony (no `unittest.TestCase`, no config).
+- **A degenerate real input beats mocking the library.** The 2D path fits a `scipy.stats.gaussian_kde`
+  inside its own nested `try/except` (a failed fit should drop just the smoothed curve, keep the
+  histogram). To trigger that failure deterministically: two spots → two identical nearest-neighbour
+  distances `[1, 1]` → zero-variance input → `gaussian_kde` raises `LinAlgError` (singular covariance). No
+  `mocker.patch` of scipy, no brittle stubbing — just data shaped to make the real call fail. Four
+  spread-out spots (`NND [1, 1, 4, 15]`) give the opposite: a curve that renders.
+- **Know how many times the code calls the method.** `_panel_z_distribution`'s 2D "insufficient spots"
+  path calls `ax.grid(False)`, and *then* the trailing code calls `ax.grid(True, linestyle=":", ...)`. So
+  `ax.grid.assert_called_once_with(False)` would fail — it's `assert_any_call(False)` or inspecting
+  `call_args_list`. Same lesson as `set_title` being called twice in `_panel_flow`'s heatmap branch.
+- **The render-failure / fatal-error pair, again.** Both branches: `ax.hist.side_effect = RuntimeError` →
+  placeholder drawn *and* trailing `set_title` still runs (`assert_called_once`); `ax.hist.side_effect =
+  FatalPipelineError` → propagates *and* trailing `set_title` never runs (`assert_not_called`). The
+  trailing-code assertion is what makes the two tests genuinely distinct rather than two spellings of
+  "didn't crash."
+
+Result: 11 tests, all pass, ruff clean. `test_qc_figures.py` at 50 tests, 165 suite-wide. Next:
+`TestPanelECFD`.
 
 **Session goal:** write `TestPanelFlow` (8 tests) covering `_panel_flow`'s branch cascade — a `None` guard,
 two heatmap-fallback branches, a non-ndarray guard, the success path, and the two exception outcomes. Back
@@ -49,6 +85,13 @@ Result: 8 tests, all pass. `test_qc_figures.py` at 39 real tests, 154 suite-wide
 `pass` stubs inside populated classes). Next: `TestPanelZDistribution`, which the stub already flags as
 "split in 2" — the 3D stacked-histogram path and the 2D KDTree/KDE path are fully independent `is_3d`
 branches, each with its own exception wrapper, plus a nested KDE-only `try/except` in the 2D path.
+
+**Also decided (deferred):** once `test_qc_figures.py` is finished, split `qc_figures.py` (1030 lines) into
+`qc_figures.py` (the 3 public `make_*` builders — the only names `run_pipeline.py` imports) + `qc_panels.py`
+(the dataclasses, `_flow_to_rgb`, the 6 `_panel_*` helpers), with tests split the same way. The reasoning
+that made "not yet" the answer: the split is a *pure internal refactor* (nothing outside the module imports
+the `_`-prefixed helpers), so it's low-risk — but only *with* the finished test suite as a safety net.
+Doing it mid-test-writing just multiplies churn against uncommitted work. Full write-up in todo.txt item 7.
 
 ---
 

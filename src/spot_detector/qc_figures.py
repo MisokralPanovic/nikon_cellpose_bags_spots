@@ -463,7 +463,7 @@ def _panel_z_distribution(
                 if images.masks_2d is not None
                 else 0
             )
-            if n_obj < 10:
+            if n_obj <= 10:
                 ax.legend(fontsize=8, loc="upper right")
 
         except FatalPipelineError:

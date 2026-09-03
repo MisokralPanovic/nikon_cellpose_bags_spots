@@ -12,6 +12,7 @@ from spot_detector.qc_figures import (
     _panel_flow,
     _panel_segemntation,
     _panel_spot_detection,
+    _panel_z_distribution,
 )
 
 # =====================================================================
@@ -526,15 +527,187 @@ class TestPanelFlow:
 class TestPanelZDistribution:
     # spots.has_spots = False
     def test_no_spots_draws_placeholder(self, ax):
-        pass
+        spots = SimpleNamespace(
+            has_spots=False,
+        )
+
+        _panel_z_distribution(
+            ax=ax,
+            images=...,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=...,  # type: ignore[arg-type]
+        )
+
+        ax.text.assert_called_once()
+        assert ax.text.call_args[0][2] == "No Spots Detected"
+        ax.axis.assert_called_once_with("off")
+        ax.hist.assert_not_called()
 
     class TestIs3dTrue:
         # spots.has_spots = True, spots.is_3d = True
-        pass
+
+        @pytest.fixture
+        def valid_3d(self):
+            # 3 spots: 1 background, 1 in obj-1, 1 in obj-2
+            return dict(
+                images=SimpleNamespace(
+                    spot_image=np.zeros((5, 2, 2)),
+                    masks_2d=np.array([[0, 1], [2, 0]]),
+                ),
+                spots=SimpleNamespace(
+                    has_spots=True,
+                    is_3d=True,
+                    dz=0.5,
+                    z_um=np.array([0.5, 1.0, 1.5]),
+                ),
+                spot_labels=np.array([0, 1, 2]),
+            )
+
+        def test_stacked_histogram_per_object(self, ax, valid_3d):
+            _panel_z_distribution(ax=ax, **valid_3d)
+
+            ax.hist.assert_called_once()
+            args, kwargs = ax.hist.call_args
+            assert [a.tolist() for a in args[0]] == [[0.5], [1.0], [1.5]]
+            assert kwargs["stacked"] is True
+            assert kwargs["label"] == ["Background", "Obj 1", "Obj 2"]
+            assert kwargs["color"][0] == "lightgray"
+            assert kwargs["bins"] == pytest.approx([0.0, 0.5, 1.0, 1.5, 2.0, 2.5])
+            ax.set_title.assert_called_once_with("Z-Distribution Profile (µm)")
+
+        def test_legend_shown_when_few_objects(self, ax, valid_3d):
+            valid_3d["images"].masks_2d = np.arange(9).reshape(3, 3)  # n_obj = 8
+            _panel_z_distribution(ax=ax, **valid_3d)
+
+            ax.legend.assert_called_once()
+            ax.text.assert_not_called()
+
+        def test_legend_suppressed_when_many_objects(self, ax, valid_3d):
+            valid_3d["images"].masks_2d = np.arange(12).reshape(
+                3, 4
+            )  # n_obj = 11, not < 10
+            _panel_z_distribution(ax=ax, **valid_3d)
+
+            ax.legend.assert_not_called()
+            ax.text.assert_not_called()
+
+        def test_render_failure_falls_back_to_placeholder(self, ax, valid_3d):
+            ax.hist.side_effect = RuntimeError("boom")
+            _panel_z_distribution(ax=ax, **valid_3d)
+
+            ax.text.assert_called_once()
+            assert ax.text.call_args[0][2] == "Failed to render"
+            ax.set_title.assert_called_once()
+
+        def test_fatal_pipeline_error_propagates_uncaught(self, ax, valid_3d):
+            ax.hist.side_effect = FatalPipelineError("unrecoverable")
+
+            with pytest.raises(FatalPipelineError):
+                _panel_z_distribution(ax=ax, **valid_3d)
+
+            # early exit: the title/axis code after the try/except never runs
+            ax.set_title.assert_not_called()
 
     class TestIs3dFalse:
         # spots.has_spots = True, spots.is_3d = False
-        pass
+        def test_insufficient_spots_for_nnd(self, ax):
+            spots = SimpleNamespace(
+                has_spots=True, is_3d=False, coordinates=np.array([[1.0, 2.0]]), dx=1.0
+            )
+
+            _panel_z_distribution(
+                ax=ax,
+                images=...,  # type: ignore[arg-type]
+                spots=spots,  # type: ignore[arg-type]
+                spot_labels=...,  # type: ignore[arg-type]
+            )
+
+            ax.text.assert_called_once()
+            assert ax.text.call_args[0][2] == "Insufficient Spots for NND"
+            ax.grid.assert_any_call(False)
+            ax.hist.assert_not_called()
+
+        def test_nnd_histogram_and_kde_curve(self, ax):
+            spots = SimpleNamespace(
+                has_spots=True,
+                is_3d=False,
+                coordinates=np.array(
+                    [[0.0, 0.0], [1.0, 0.0], [5.0, 0.0], [20.0, 0.0]]
+                ),  # NND [1,1,4,15] has variance
+                dx=1.0,
+            )
+
+            _panel_z_distribution(
+                ax=ax,
+                images=...,  # type: ignore[arg-type]
+                spots=spots,  # type: ignore[arg-type]
+                spot_labels=...,  # type: ignore[arg-type]
+            )
+
+            ax.hist.assert_called_once()
+            _, kwargs = ax.hist.call_args
+            assert kwargs["density"] is True
+            ax.plot.assert_called_once()
+
+        def test_kde_failure_drops_curve_keeps_histogram(self, ax):
+            spots = SimpleNamespace(
+                has_spots=True,
+                is_3d=False,
+                coordinates=np.array(
+                    [[0.0, 0.0], [1.0, 0.0]]
+                ),  # NND [1,1] → gaussian_kde raises on singular covariance
+                dx=1.0,
+            )
+
+            _panel_z_distribution(
+                ax=ax,
+                images=...,  # type: ignore[arg-type]
+                spots=spots,  # type: ignore[arg-type]
+                spot_labels=...,  # type: ignore[arg-type]
+            )
+
+            ax.hist.assert_called_once()
+            ax.plot.assert_not_called()
+
+        def test_render_failure_falls_back_to_placeholder(self, ax):
+            ax.hist.side_effect = RuntimeError("boom")
+            spots = SimpleNamespace(
+                has_spots=True,
+                is_3d=False,
+                coordinates=np.array([[0.0, 0.0], [1.0, 0.0], [5.0, 0.0], [20.0, 0.0]]),
+                dx=1.0,
+            )
+
+            _panel_z_distribution(
+                ax=ax,
+                images=...,  # type: ignore[arg-type]
+                spots=spots,  # type: ignore[arg-type]
+                spot_labels=...,  # type: ignore[arg-type]
+            )
+
+            ax.text.assert_called_once()
+            assert ax.text.call_args[0][2] == "Failed to render"
+            ax.set_title.assert_called_once()
+
+        def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+            ax.hist.side_effect = FatalPipelineError("unrecoverable")
+            spots = SimpleNamespace(
+                has_spots=True,
+                is_3d=False,
+                coordinates=np.array([[0.0, 0.0], [1.0, 0.0], [5.0, 0.0], [20.0, 0.0]]),
+                dx=1.0,
+            )
+
+            with pytest.raises(FatalPipelineError):
+                _panel_z_distribution(
+                    ax=ax,
+                    images=...,  # type: ignore[arg-type]
+                    spots=spots,  # type: ignore[arg-type]
+                    spot_labels=...,  # type: ignore[arg-type]
+                )
+
+            # early exit: the title/axis code after the try/except never runs
+            ax.set_title.assert_not_called()
 
 
 class TestPanelECFD:

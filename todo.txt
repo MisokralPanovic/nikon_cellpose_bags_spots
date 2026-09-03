@@ -487,6 +487,51 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
   the 2D NND/KDE path are independent branches), TestPanelECFD, TestPanelSpotmap, then the 3
   figure-builder classes.
 
+  DONE 2026-09-03 (cont'd): TestPanelZDistribution written (learning-mode - Claude advised, user wrote
+  every test). 11 tests, all pass, ruff clean. Structure: one top-level test for the shared
+  `has_spots=False` early-out, then nested classes TestIs3dTrue / TestIs3dFalse for the two independent
+  is_3d branches (first use of nested test classes in this repo - chosen so the one-top-level-class-per-
+  panel mapping survives while the branches get separate scope + their own fixtures; the shared early-out
+  test has a natural home in the outer class).
+    - TestIs3dTrue has a `valid_3d` fixture returning a dict of complete, minimal inputs that actually
+      REACH ax.hist (spots.z_um as a real array, spots.dz, images.spot_image with ndim==3,
+      images.masks_2d) - needed because the 3D branch reads ~6 attributes in its loop before anything
+      observable happens, and a missing one silently drops into `except Exception` -> "Failed to render",
+      making a happy-path test pass for the wrong reason. Every happy-path test asserts
+      ax.text.assert_not_called() as the guard against exactly that false positive.
+    - stacked-histogram test pins the actual partitioning: `[a.tolist() for a in ax.hist.call_args[0][0]]
+      == [[0.5],[1.0],[1.5]]` (spots bucketed into hist_data by spot_labels value), plus stacked=True,
+      label list ["Background","Obj 1","Obj 2"], color[0]=="lightgray", bins from arange*dz.
+    - legend gating: n_obj = len(np.unique(masks_2d)) - 1 (the -1 drops label 0); tests bracket the
+      `n_obj < 10` threshold from both sides (masks_2d = arange(9) -> n_obj 8 -> legend shown;
+      arange(12) -> n_obj 11 -> suppressed). Exact-boundary (n_obj == 10) test skipped as gold-plating.
+    - TestIs3dFalse: the 2D branch reads ONLY spots.coordinates + spots.dx (no images, no spot_labels),
+      so every test passes images=... / spot_labels=... (literal Ellipsis) and only builds a real spots.
+    - degenerate gaussian_kde as a deterministic failure trigger: 2 spots -> NND [1,1] -> identical
+      values -> gaussian_kde raises LinAlgError (singular covariance) -> exercises the 2D path's INNER
+      try/except (curve dropped, histogram kept: ax.hist called, ax.plot NOT called). 4 spread-out spots
+      -> NND [1,1,4,15] has variance -> KDE curve drawn (ax.plot called). No mocking of scipy needed.
+    - 1 spot -> len(coordinates) < 2 -> "Insufficient Spots for NND" + ax.grid(False); test uses
+      ax.grid.assert_any_call(False) since ax.grid is ALSO called with (True, ...) in the trailing code.
+    - render-failure vs fatal, both branches: ax.hist.side_effect = RuntimeError -> "Failed to render"
+      placeholder + trailing set_title STILL runs (assert_called_once); ax.hist.side_effect =
+      FatalPipelineError -> pytest.raises + trailing set_title NOT called (assert_not_called) - the
+      contrast assertion that distinguishes the two except branches.
+  test_qc_figures.py now 50 real tests, 165 suite-wide. Technique notes: nested @pytest.fixture inside a
+  nested test class works fine and is function-scoped (fresh per test, in-place mutation like
+  `valid_3d["images"].masks_2d = ...` is safe); a degenerate numeric input that makes a real library call
+  raise is cleaner than mocking that library.
+  NEXT: TestPanelECFD. _panel_ecdf(ax, spots, spot_labels, flow_details, config) - note it takes `config`
+  (PipelineConfig) AND `flow_details` (for .prob). Shared `if not spots.has_spots` early-out ("No Spots
+  Detected" + axis off). Else: builds prob_arr = np.array(flow_details.prob), splits inside (spot_labels
+  > 0) vs background, draws an ax.step ECDF per group (skips a group with len 0), an ax.axvline at
+  config.detection.prob_thresh, then xlim/ylim/labels/title/legend/grid in trailing code. One
+  except FatalPipelineError: raise / except Exception -> "Failed to render" wrapper. Tests: has_spots
+  False; happy path (2 ax.step calls + 1 ax.axvline, check the split); one group empty (all
+  spot_labels > 0, or all == 0) -> only 1 ax.step; render failure + fatal. config can be a
+  SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.5)) stand-in, or make_config from conftest -
+  decide which fits (SimpleNamespace matches the panel-test convention of minimal stand-ins).
+
   DONE 2026-09-03: TestPanelFlow written (learning-mode - Claude advised, user wrote every test). 8
   tests, all pass, back to the mocked-`ax` panel style but also mocking _flow_to_rgb itself for the
   paths that reach it:
@@ -728,4 +773,29 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
     (b) fail fast - check image_shape[i] % factor == 0 at the top of segment_2d/segment_3d and raise
         ValueError naming the offending scene, instead of silently producing misaligned output
   leaning (a) since it's a real fix rather than just surfacing the limitation, but not decided.
+---
+
+7. code organization: split qc_figures.py   <- AGREED 2026-09-03, DEFERRED until test_qc_figures.py is done
+   (item 4). qc_figures.py is 1030 lines, the largest module in the repo. Do NOT start the split until the
+   remaining test_qc_figures.py classes (TestPanelZDistribution, TestPanelECFD, TestPanelSpotmap,
+   TestMakeQCFigure, TestMakeSceneSummaryFigure, TestMakeRunSummaryFigure) are written and the full suite
+   is green - that coverage is the safety net that makes the move safe. Then do source + tests + docs as
+   ONE dedicated commit (user commits, as always).
+   The cut (clean because everything except the 3 public make_* builders is `_`-prefixed / private):
+     - qc_figures.py STAYS as the public API: make_qc_figure, make_scene_summary_figure,
+       make_run_summary_figure (the only names run_pipeline.py imports - callers see zero change), imports
+       what it needs from the new module.
+     - qc_panels.py (new): SpotData, ImageData, _flow_to_rgb, and all 6 _panel_* helpers (~680 lines).
+   Tests mirror it 1:1 (keeps the repo's "one test file per source module" convention):
+     - test_qc_panels.py: TestSpotData, TestImageData, TestFlowToRGB, TestPanelSegemntation,
+       TestPanelSpotDetection, TestPanelFlow, TestPanelZDistribution, TestPanelECFD, TestPanelSpotmap.
+     - test_qc_figures.py: TestMakeQCFigure, TestMakeSceneSummaryFigure, TestMakeRunSummaryFigure.
+   Rationale (see also LEARNING_NOTES.md 2026-09-03): split on the visibility boundary = pure internal
+   refactor, no other module's imports change, lowest-risk kind. The stronger driver is the TEST file (a
+   ~800-line test module is hard to navigate); the source module is cohesive (one responsibility, well
+   sectioned) so its length alone is a weak smell. Deliberately NOT splitting tests without splitting
+   source - that would break the one-file-per-module mapping.
+   FOLLOW-UP once done: CLAUDE.md's Architecture section ("Key modules under src/spot_detector/") and the
+   fan-out diagram's qc_figures.* references need updating to name qc_panels.py; the Testing conventions
+   paragraph's file list too.
 ---
