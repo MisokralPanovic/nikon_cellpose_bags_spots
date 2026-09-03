@@ -9,6 +9,7 @@ from spot_detector.qc_figures import (
     ImageData,
     SpotData,
     _flow_to_rgb,
+    _panel_ecdf,
     _panel_flow,
     _panel_segemntation,
     _panel_spot_detection,
@@ -711,7 +712,109 @@ class TestPanelZDistribution:
 
 
 class TestPanelECFD:
-    pass
+    def test_no_spots_draws_placeholder(self, ax):
+        spots = SimpleNamespace(has_spots=False)
+
+        _panel_ecdf(
+            ax=ax,
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=...,  # type: ignore[arg-type]
+            flow_details=...,  # type: ignore[arg-type]
+            config=...,  # type: ignore[arg-type]
+        )
+
+        ax.text.assert_called_once()
+        assert ax.text.call_args[0][2] == "No Spots Detected"
+        ax.axis.assert_called_once_with("off")
+        ax.axvline.assert_not_called()
+
+    def test_splits_inside_vs_background(self, ax):
+        spots = SimpleNamespace(has_spots=True)
+        spot_labels = np.array([0, 1, 0, 2])
+        flow_details = SimpleNamespace(prob=[0.2, 0.8, 0.4, 0.9])
+        config = SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4))
+
+        _panel_ecdf(
+            ax=ax,
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=spot_labels,
+            flow_details=flow_details,
+            config=config,  # type: ignore[arg-type]
+        )
+
+        assert ax.step.call_count == 2
+        args_inside, kwargs_inside = ax.step.call_args_list[0]
+        assert args_inside[0].tolist() == [0.8, 0.9]
+        assert kwargs_inside["color"] == "#D4537E"
+        assert kwargs_inside["linestyle"] == "-"
+        assert kwargs_inside["label"] == "Inside object (n=2)"
+
+        args_background, kwargs_background = ax.step.call_args_list[1]
+        assert args_background[0].tolist() == [0.2, 0.4]
+        assert kwargs_background["color"] == "#888780"
+        assert kwargs_background["linestyle"] == "--"
+        assert kwargs_background["label"] == "Background (n=2)"
+
+        ax.axvline.assert_called_once()
+        assert ax.axvline.call_args[0][0] == 0.4
+        ax.text.assert_not_called()
+
+    def test_empty_group_is_skipped(self, ax):
+        spots = SimpleNamespace(has_spots=True)
+        spot_labels = np.array([1, 2, 3])
+        flow_details = SimpleNamespace(prob=[0.2, 0.8, 0.4])
+        config = SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4))
+
+        _panel_ecdf(
+            ax=ax,
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=spot_labels,
+            flow_details=flow_details,
+            config=config,  # type: ignore[arg-type]
+        )
+
+        assert ax.step.call_count == 1
+        _, kwargs = ax.step.call_args
+        assert kwargs["label"] == "Inside object (n=3)"
+        ax.axvline.assert_called_once()
+
+    def test_render_failure_falls_back_to_placeholder(self, ax):
+        ax.axvline.side_effect = RuntimeError("boom")
+        spots = SimpleNamespace(has_spots=True)
+        spot_labels = np.array([0, 1, 0, 2])
+        flow_details = SimpleNamespace(prob=[0.2, 0.8, 0.4, 0.9])
+        config = SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4))
+
+        _panel_ecdf(
+            ax=ax,
+            spots=spots,  # type: ignore[arg-type]
+            spot_labels=spot_labels,
+            flow_details=flow_details,
+            config=config,  # type: ignore[arg-type]
+        )
+
+        ax.text.assert_called_once()
+        assert ax.text.call_args[0][2] == "Failed to render"
+        ax.set_title.assert_called_once()
+
+    def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+        ax.axvline.side_effect = FatalPipelineError("unrecoverable")
+        spots = SimpleNamespace(has_spots=True)
+        spot_labels = np.array([0, 1, 0, 2])
+        flow_details = SimpleNamespace(prob=[0.2, 0.8, 0.4, 0.9])
+        config = SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4))
+
+        with pytest.raises(FatalPipelineError):
+            _panel_ecdf(
+                ax=ax,
+                spots=spots,  # type: ignore[arg-type]
+                spot_labels=spot_labels,
+                flow_details=flow_details,
+                config=config,  # type: ignore[arg-type]
+            )
+
+            # early exit: the title/axis code after the try/except never runs
+            ax.set_title.assert_not_called()
 
 
 class TestPanelSpotmap:

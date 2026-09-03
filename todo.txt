@@ -521,16 +521,43 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
   nested test class works fine and is function-scoped (fresh per test, in-place mutation like
   `valid_3d["images"].masks_2d = ...` is safe); a degenerate numeric input that makes a real library call
   raise is cleaner than mocking that library.
-  NEXT: TestPanelECFD. _panel_ecdf(ax, spots, spot_labels, flow_details, config) - note it takes `config`
-  (PipelineConfig) AND `flow_details` (for .prob). Shared `if not spots.has_spots` early-out ("No Spots
-  Detected" + axis off). Else: builds prob_arr = np.array(flow_details.prob), splits inside (spot_labels
-  > 0) vs background, draws an ax.step ECDF per group (skips a group with len 0), an ax.axvline at
-  config.detection.prob_thresh, then xlim/ylim/labels/title/legend/grid in trailing code. One
-  except FatalPipelineError: raise / except Exception -> "Failed to render" wrapper. Tests: has_spots
-  False; happy path (2 ax.step calls + 1 ax.axvline, check the split); one group empty (all
-  spot_labels > 0, or all == 0) -> only 1 ax.step; render failure + fatal. config can be a
-  SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.5)) stand-in, or make_config from conftest -
-  decide which fits (SimpleNamespace matches the panel-test convention of minimal stand-ins).
+  DONE 2026-09-03 (cont'd): TestPanelECFD written (learning-mode - Claude advised, user wrote every
+  test). 5 tests, flat class (no nesting - _panel_ecdf is one linear flow, the has_spots split is plain
+  if/else with no independent sub-algorithm). config + flow_details are SimpleNamespace stand-ins
+  (config = SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4)) - only .detection.prob_thresh
+  is read; make_config from conftest would work but builds real tmp files for pydantic validators, pure
+  overhead here).
+    - has_spots=False -> "No Spots Detected" + axis off, else-block never entered (ax.axvline not called).
+    - splits inside (spot_labels > 0) vs background: spot_labels [0,1,0,2] + prob [0.2,0.8,0.4,0.9] ->
+      inside subset sorted [0.8,0.9], background [0.2,0.4], both n=2. Asserts ax.step.call_count == 2 and
+      inspects call_args_list[0] (inside, color #D4537E, ls "-") vs call_args_list[1] (background,
+      #888780, "--"), plus ax.axvline positional arg == prob_thresh.
+    - empty group skipped: all spot_labels > 0 -> background subset len 0 -> `continue` -> only 1
+      ax.step call, ax.axvline still called. (prob list length MUST match spot_labels or prob_arr[mask]
+      IndexErrors into the except -> a false-positive failure-path test.)
+    - render failure vs fatal: ax.axvline.side_effect (axvline is the last statement in the try) =
+      RuntimeError -> "Failed to render" + trailing set_title runs; = FatalPipelineError -> pytest.raises
+      + trailing set_title NOT called.
+  OUTSTANDING TWEAK (user to fix): the fatal test's `ax.set_title.assert_not_called()` is indented INSIDE
+  the `with pytest.raises(...)` block, after the raising call -> unreachable, never runs. Dedent it one
+  level to sit after the `with` block (the two TestPanelZDistribution fatal tests already have this
+  right). Test still passes and still proves propagation; only the contrast assertion is currently inert.
+  test_qc_figures.py at 55 tests, 170 suite-wide.
+  Two mock gotchas hit and fixed while writing this (see LEARNING_NOTES.md 2026-09-03 cont'd):
+    - `mock.call_args` is the LAST call only; `call_args[0]`/`call_args[1]` are its (args, kwargs), NOT
+      "first call"/"second call". For a method called in a loop, use `call_args_list[i]`.
+    - `kwargs["label"] = "..."` (single =) inside a test is a silent dict assignment, asserts nothing -
+      `mock.call_args` unpacks to a plain dict, so a typo'd `==` just mutates it.
+  NEXT: TestPanelSpotmap. _panel_spotmap(ax, images, spots) - no has_spots early-out placeholder here
+  (different shape). Reads images.segmentation_image.shape[-2:], images.masks_2d, spots.{has_spots, x,
+  y, is_3d, z_um, dx}. Two independent guarded blocks: (1) `if images.masks_2d is not None` draws
+  ax.contour of object boundaries (skipped if no levels > 0); (2) `if spots.has_spots and x/y not None`
+  a try/except'd scatter, is_3d -> ax.scatter(c=z_um, cmap="turbo") + fig.colorbar (needs
+  ax.get_figure() to return something), else -> plain blue ax.scatter. Trailing xlim/ylim (y inverted)
+  /set_aspect("equal") always run. One except FatalPipelineError: raise / except Exception ->
+  "Failed to render" around the scatter block only. Tests: contour drawn / contour skipped when
+  masks_2d all background; 3D scatter + colorbar; 2D scatter; no-spots (contour still drawn, no
+  scatter); render failure + fatal (scatter block). Then the 3 figure-builder classes.
 
   DONE 2026-09-03: TestPanelFlow written (learning-mode - Claude advised, user wrote every test). 8
   tests, all pass, back to the mocked-`ax` panel style but also mocking _flow_to_rgb itself for the
@@ -798,4 +825,23 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
    FOLLOW-UP once done: CLAUDE.md's Architecture section ("Key modules under src/spot_detector/") and the
    fan-out diagram's qc_figures.* references need updating to name qc_panels.py; the Testing conventions
    paragraph's file list too.
+---
+
+8. test_qc_figures.py readability pass   <- WANTED by user 2026-09-03, DEFERRED until all classes written
+   Once TestPanelSpotmap + the 3 figure-builder classes are done and the suite is green, do a dedicated
+   pass to simplify test readability by pulling repeated setup into fixtures - the way
+   TestPanelZDistribution.TestIs3dTrue's `valid_3d` fixture already does it. Test-only, no src changes.
+   Known candidates:
+   - TestPanelECFD: 4 of 5 tests repeat the same 4-line spots/spot_labels/flow_details/config block ->
+     a `valid_ecdf` fixture (dict) + per-test overrides.
+   - TestPanelZDistribution.TestIs3dFalse: every test rebuilds
+     spots = SimpleNamespace(has_spots=True, is_3d=False, coordinates=..., dx=...) -> fixture + coordinates
+     override.
+   - the `images=... / spot_labels=...` Ellipsis noise in the 2D-branch / ECFD-no-spots calls could go
+     behind a tiny per-class `_call(ax, **overrides)` helper so the panel invocation isn't repeated
+     verbatim 5x.
+   - TestPanelFlow / TestPanelSpotDetection: repeated SimpleNamespace(...) images/spots construction.
+   Do it as ONE commit after coverage is complete, not interleaved - same reasoning as item 7 (the green
+   suite is the safety net for a mechanical refactor). Pairs naturally with item 7; could be the same
+   sitting.
 ---

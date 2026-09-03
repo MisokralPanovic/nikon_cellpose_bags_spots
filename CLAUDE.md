@@ -143,11 +143,11 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 165 tests as of 2026-09-03.
-`test_qc_figures.py` is still being built out (50 of a planned ~55 tests — `TestPanelECFD`,
-`TestPanelSpotmap` and the 3 figure-builder classes are still empty `pass` stubs; see `todo.txt`
-item 4). It is also the first test file to use nested test classes (`TestPanelZDistribution`'s
-`TestIs3dTrue` / `TestIs3dFalse`), for a panel with two independent `is_3d` branches. Tests
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 170 tests as of 2026-09-03.
+`test_qc_figures.py` is still being built out (55 tests so far — `TestPanelSpotmap` and the 3
+figure-builder classes are still empty `pass` stubs; see `todo.txt` item 4). It is also the first
+test file to use nested test classes (`TestPanelZDistribution`'s `TestIs3dTrue` / `TestIs3dFalse`),
+for a panel with two independent `is_3d` branches. Tests
 mock heavy ML dependencies (Cellpose/Spotiflow model calls) via `pytest-mock` rather than loading real models
 or real microscopy files — keep new tests fast and offline.
 

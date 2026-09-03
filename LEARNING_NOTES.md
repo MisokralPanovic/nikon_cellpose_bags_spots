@@ -40,8 +40,30 @@ shared `has_spots=False` guard. I wrote every test; Claude advised.
   trailing-code assertion is what makes the two tests genuinely distinct rather than two spellings of
   "didn't crash."
 
-Result: 11 tests, all pass, ruff clean. `test_qc_figures.py` at 50 tests, 165 suite-wide. Next:
-`TestPanelECFD`.
+Result: 11 tests, all pass, ruff clean. `test_qc_figures.py` at 50 tests, 165 suite-wide.
+
+### `TestPanelECFD` (same session) — two more mock gotchas
+
+- **`mock.call_args` is the *last* call; `mock.call_args_list[i]` is call number `i`.** On a `Call`
+  object, `call_args[0]` is its positional-args tuple and `call_args[1]` is its kwargs dict — so
+  `ax.step.call_args[0]` / `[1]` does *not* mean "first / second call", it means "(args, kwargs) of the
+  most recent call". `_panel_ecdf` calls `ax.step` twice in a loop (inside-object ECDF, then
+  background); to inspect each, `args, kwargs = ax.step.call_args_list[0]` and `...[1]`. The house
+  pattern was already there in `TestPanelSpotDetection` (`ax.scatter.call_args_list[0]`) — just easy to
+  reach for `call_args` by reflex.
+- **`kwargs["label"] = "..."` inside a test asserts nothing.** Single `=`. `mock.call_args` unpacks to a
+  real dict, so a `==` that lost a character silently becomes an assignment into that dict and the test
+  passes having checked nothing. Grep new test files for `\bkwargs\[` followed by a bare `=`.
+- **An assertion placed *inside* `with pytest.raises(...)`, after the raising call, is dead code.** When
+  the call raises, control leaves the `with` block immediately — anything below the call never runs. The
+  "trailing code was skipped" contrast assertion (`ax.set_title.assert_not_called()`) has to sit *after*
+  the `with` block, dedented. Passed review on the `TestPanelZDistribution` fatal tests, slipped through
+  on the first `TestPanelECFD` one.
+
+`test_qc_figures.py` at 55 tests, 170 suite-wide. Also logged (todo.txt item 8): a later dedicated pass
+to pull repeated per-test setup into fixtures — `TestIs3dTrue.valid_3d` is the model; `TestPanelECFD`
+and `TestIs3dFalse` are the worst repeaters. Deferred, same "green suite as safety net" reasoning as the
+module split. Next: `TestPanelSpotmap`.
 
 **Session goal:** write `TestPanelFlow` (8 tests) covering `_panel_flow`'s branch cascade — a `None` guard,
 two heatmap-fallback branches, a non-ndarray guard, the success path, and the two exception outcomes. Back
