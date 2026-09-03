@@ -143,7 +143,10 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 113 tests total as of 2026-07-30. Tests
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 154 tests as of 2026-09-03.
+`test_qc_figures.py` is still being built out (39 of a planned ~55 tests — `TestPanelZDistribution`,
+`TestPanelECFD`, `TestPanelSpotmap` and the 3 figure-builder classes are empty `pass` stubs; see
+`todo.txt` item 4). Tests
 mock heavy ML dependencies (Cellpose/Spotiflow model calls) via `pytest-mock` rather than loading real models
 or real microscopy files — keep new tests fast and offline.
 

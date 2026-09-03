@@ -5,6 +5,96 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-09-03 — `TestPanelFlow`: mocking a helper you already tested, and making paired tests actually differ
+
+**Session goal:** write `TestPanelFlow` (8 tests) covering `_panel_flow`'s branch cascade — a `None` guard,
+two heatmap-fallback branches, a non-ndarray guard, the success path, and the two exception outcomes. Back
+to the mocked-`ax` style, this time also mocking `_flow_to_rgb` for the paths that reach it. I wrote every
+test; Claude advised.
+
+- **`mocker.sentinel` is the clean way to check "was *this* object passed on."** For the success path I
+  needed `_flow_to_rgb` to return something I could then assert `ax.imshow` received. A real ndarray breaks
+  `ax.imshow.assert_called_once_with(arr)` on NumPy's ambiguous `==`. `mocker.sentinel.rgb` is a unique
+  marker that compares by identity, so `assert_called_once_with(mocker.sentinel.rgb)` just works. Use it
+  whenever the test only cares about object flow, not object content.
+- **Identity (`is`) vs value (`== pytest.approx`) is a decision about what the code does, not a style
+  choice.** The 2D heatmap branch does `display = heatmap` (ndim 2) and passes it straight to `imshow` — so
+  `assert imshow_arg is flow_details.heatmap` is correct *and* stronger: it also catches an accidental copy
+  or transpose. The 3D branch does `heatmap.max(axis=0)` — a new array — so identity can't hold and you
+  switch to `== pytest.approx(heatmap.max(axis=0))`. Same rule I hit in `TestFlowToRGB`, now on the panel.
+- **A hand-built input beats `np.arange` when the test's whole point is a reduction.** For "3D heatmap gets
+  max-projected over Z" I built a `(3, 2, 2)` array where each z-slice owns a different bright pixel, so
+  `max(axis=0)` genuinely mixes all three slices. A monotonic `np.arange(...).reshape(3,2,2)` would make
+  `max(axis=0) == heatmap[-1]`, and the test couldn't distinguish "element-wise max over Z" from "just take
+  the last slice."
+- **Two tests that exist to prove two branches behave *differently* each need an assertion the other one
+  fails.** `test_render_failure` and `test_fatal_error` both trigger an exception inside the same `try`. If
+  both only asserted "the function returned / raised," they'd be near-duplicates. The distinguishing
+  assertion is `ax.text.assert_not_called()` in the fatal test — it proves `except FatalPipelineError:
+  raise` runs *instead of* drawing the "Flow Render Error" placeholder. That one line is what makes the
+  pair meaningful.
+- **Drive the failure through the statement you actually want to test.** I put `side_effect` on
+  `ax.imshow`, not on the mocked `_flow_to_rgb`. `ax.imshow(rgb)` is the *second* line in the `try`, so this
+  proves the `except` recovers from a failure in either line — a strictly broader claim than "the helper
+  blew up."
+- **Hard-code the expected string; don't rebuild it with an f-string.** `assert ... == "Flow Render
+  Error\nboom"`, not `f"Flow Render Error\n{something}"`. If someone rewords the message in the source, I
+  want the test to fail loudly rather than silently track the change. (Also: a stray `f""` with no
+  placeholders is a ruff `F541` — the pre-commit hook would strip it anyway.)
+- **`_panel_flow` has no code after its `try/except`.** Unlike the other panels (where a caught exception
+  still falls through to scalebar/title/axis code), there's nothing to assert "still ran." The
+  FatalPipelineError test is just: it propagates, and `ax.imshow` wasn't reached.
+
+Result: 8 tests, all pass. `test_qc_figures.py` at 39 real tests, 154 suite-wide (all real now — no more
+`pass` stubs inside populated classes). Next: `TestPanelZDistribution`, which the stub already flags as
+"split in 2" — the 3D stacked-histogram path and the 2D KDTree/KDE path are fully independent `is_3d`
+branches, each with its own exception wrapper, plus a nested KDE-only `try/except` in the 2D path.
+
+---
+
+## 2026-09-02 — Testing a pure array transform (`_flow_to_rgb`), and where `pytest.approx` stops working
+
+**Session goal:** write `TestFlowToRGB` in `test_qc_figures.py` — the first real coverage of `_flow_to_rgb`,
+the flow-field → RGB helper whose 3D channel indexing I fixed earlier the same day. I wrote every test;
+Claude advised on how to build the synthetic input arrays and check the results.
+
+- **Pick inputs where the output is trivially predictable instead of reproducing the math.** `_flow_to_rgb`
+  ends in an HLS→RGB conversion I did not want to re-derive in a test. The way out: feed it **zero flow
+  everywhere**. Magnitude 0 forces saturation 0, and an HSV color with zero saturation is `(V, V, V)`
+  regardless of hue — so the whole image is pure white, and the assertion is just `out == pytest.approx(1.0)`.
+  The same trick doubles as a **channel-selection test**: put a large value only in the channels the function
+  is supposed to *ignore* (the stereographic component and, for 3D, the z-flow component), leave the y/x
+  channels at zero, and assert the output is still white. If the function read the wrong channel the magnitude
+  wouldn't be zero and the image wouldn't be white. That single test is the regression lock for the bug I
+  fixed this morning — the old code read index 1 (z) as the y-component and would fail it.
+- **Assert on identical outputs from deliberately different inputs.** For "3D picks the z-slice with the
+  highest flow magnitude", I built a `(Z, Y, X, 4)` volume with exactly one non-zero slice, plus a separate
+  hand-built `(Y, X, 3)` 2D array holding that slice's flow *at the 2D channel indices* (fy at 1, fx at 2 —
+  not 2 and 3 like the 3D layout). Asserting `_flow_to_rgb(vol) == pytest.approx(_flow_to_rgb(equiv_2d))`
+  passes only if the function both selected the right slice *and* applied the correct, different index map to
+  each case. One assertion, two behaviors covered.
+- **`pytest.approx` is an equality tool; its ordering-operator support is fragile.** I tried
+  `out.min() >= pytest.approx(0.0)` for a bounds check and got `TypeError: '>=' not supported between
+  instances of 'numpy.float32' and 'ApproxScalar'`. `approx` *does* support `<`/`<=`/`>`/`>=` since pytest
+  5.1, but only cleanly with plain Python floats — a NumPy scalar on the left doesn't defer to approx's
+  reflected operator. For "is every value in `[0, 1]`" the right answer is plain `out.min() >= 0.0` /
+  `out.max() <= 1.0` (and `out.min()`/`.max()` give a useful number on failure, unlike `np.all(...)` which
+  only ever says `False`). `approx` stays the tool for *equality*, including whole-array equality —
+  `actual == pytest.approx(expected)` works because pytest's `ApproxNumpy` does the elementwise compare and
+  reduces it to a single bool.
+- **Consistency beats a marginally better tool.** Considered `numpy.testing.assert_allclose` (richer failure
+  diagnostics for arrays) but stuck with `== pytest.approx(...)` — every other test file in the repo uses it,
+  and one comparison style across the suite is worth more than slightly nicer error messages in one file.
+- **Empirically confirmed a docstring claim instead of trusting it.** `_flow_to_rgb`'s docstring promises
+  `dtype float32`. Rather than assume, the contract test asserts `out.dtype == np.float32` and it passes —
+  `matplotlib.colors.hsv_to_rgb` preserves the float32 the function feeds it. Now it's pinned.
+
+Result: 8 tests, all passing. `test_qc_figures.py` at 31 real tests (+ 8 named-but-empty `TestPanelFlow`
+stubs I laid down as a plan for next). Next: `TestPanelFlow` — back to the mocked-`ax` panel style, this
+time also mocking `_flow_to_rgb` itself for the success/failure paths.
+
+---
+
 ## 2026-07-30 (cont'd, part 2) — Exception taxonomy implemented and tested (QC resilience still pending)
 
 **Session goal:** implement the exception-hierarchy half of the design from earlier today (see the

@@ -437,6 +437,111 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
   23 tests in test_qc_figures.py so far, 138 total suite-wide (unchanged by this session's bug fix -
   it touched src/spot_detector/qc_figures.py and src/flow_details.py, a standalone scratch/diagnostic
   script outside the test suite, not tests/test_qc_figures.py itself).
+
+  DONE 2026-09-02 (cont'd): TestFlowToRGB written (learning-mode - Claude advised on synthetic-data
+  construction + assertion style, user wrote every test). 8 tests:
+    - 2D output contract - shape (Y,X,3) / dtype / [0,1] bounds. Confirmed empirically that
+      mcolors.hsv_to_rgb preserves the float32 the function feeds it (out.dtype == np.float32 passes),
+      so _flow_to_rgb's docstring dtype claim holds - was an open question from the earlier scoping.
+    - 3D output collapses the Z axis (random (Z,Y,X,4) -> (Y,X,3)).
+    - 3D best-z selection - one "loud" z-slice (fy=3 at idx2, fx=4 at idx3), all others zero, asserted
+      to produce the identical RGB as its hand-built 2D equivalent ((Y,X,3) with fy=3 at idx1, fx=4 at
+      idx2). The single equality simultaneously exercises best_z selection AND the per-branch channel
+      index maps the 2026-09-02 fix corrected.
+    - 3D ignores stereographic + z channels - REGRESSION LOCK for the 2026-09-02 fix: garbage (100.0)
+      in indices 0 and 1, zeros in 2 and 3, output must be all-white. The OLD buggy code read index 1
+      as fy -> magnitude 100 -> not white -> this test would have failed on it.
+    - zero-flow-is-white (2D) - simplest predictable-output case.
+    - bad-shape ValueError - parametrized x3: ndim 2, ndim-3 last-axis<3, ndim-4 last-axis<3.
+  All pass. test_qc_figures.py now 31 real tests (SpotData 4 + ImageData 7 + PanelSegemntation 6 +
+  PanelSpotDetection 6 + FlowToRGB 8) plus 8 not-yet-implemented TestPanelFlow `pass` stubs the user
+  scaffolded as a plan -> 39 collected in that file, 146 real / 154 collected suite-wide.
+  Technique notes for the remaining classes:
+    - pytest.approx ordering operators (>=, <=) do NOT work with a numpy scalar on the left:
+      `out.min() >= pytest.approx(0.0)` raises TypeError ("'>=' not supported between instances of
+      'numpy.float32' and 'ApproxScalar'"). approx is fundamentally an equality tool; its </<=/>/>=
+      support is a fragile bolt-on that only works with plain Python floats. For bounds checks use
+      plain `out.min() >= 0.0` / `out.max() <= 1.0` (verified: _flow_to_rgb output is exactly [0.0,
+      1.0], no float overshoot at the clip boundary, so no epsilon needed). Whole-array approximate
+      equality still uses `actual == pytest.approx(expected)` - ApproxNumpy does the elementwise
+      compare + reduces to one bool, matching the existing line ~133 pattern.
+    - the "zero flow -> pure white" trick: magnitude 0 forces saturation 0, and HSV with zero
+      saturation is (V,V,V) regardless of hue, so the output is trivially predictable without
+      reproducing the HLS->RGB math. Used for both the zero-flow and the channels-ignored tests.
+    - np.testing (assert_allclose etc.) deliberately NOT introduced - the suite's established style is
+      `== pytest.approx(...)` for arrays; consistency across the other 10 test files wins over
+      np.testing's richer failure diagnostics.
+  Optional polish deferred on TestFlowToRGB (not blockers): equiv_2d in test_3d_selects_highest_
+  magnitude_z is np.zeros((6,7,4)) - functionally fine (2D branch only needs last-axis>=3) but real
+  Spotiflow 2D flow is (Y,X,3); and that test has only one non-zero z-slice, so it proves "the
+  non-zero slice wins over zero slices" rather than literally "highest of several" - judged adequate
+  (argmin/first/last mutations all still caught).
+  NEXT: TestPanelFlow (8 stubs already named in the file) - mocked `ax` + mocked _flow_to_rgb (patch
+  at spot_detector.qc_figures._flow_to_rgb), covering: None flow_details / flow=None+heatmap-2D /
+  flow=None+heatmap-3D-maxproj / flow=None+no-heatmap text / non-ndarray flow text / success path /
+  render-failure "Flow Render Error" placeholder / FatalPipelineError propagates. Note _panel_flow
+  calls set_title + axis("off") FIRST, then heatmap branches call set_title again to override - so
+  the "trailing code after the try/except still runs" assertion the other panels use does NOT apply
+  here, and the FatalPipelineError test just asserts propagation + `ax.imshow` not called.
+  Then TestPanelZDistribution (user's note in file: "split in 2" - the 3D stacked-histogram path and
+  the 2D NND/KDE path are independent branches), TestPanelECFD, TestPanelSpotmap, then the 3
+  figure-builder classes.
+
+  DONE 2026-09-03: TestPanelFlow written (learning-mode - Claude advised, user wrote every test). 8
+  tests, all pass, back to the mocked-`ax` panel style but also mocking _flow_to_rgb itself for the
+  paths that reach it:
+    - None flow_details -> "No Flow Data Provided" text placeholder, no imshow.
+    - flow=None + 2D heatmap -> ax.imshow(heatmap, cmap="magma"), title overridden to "Probability
+      Heatmap\n(flow unavailable - subpix disabled)". Asserts `args[0] is flow_details.heatmap`
+      (identity - the 2D branch passes the heatmap straight through, ndim==2 so display = heatmap).
+    - flow=None + 3D heatmap -> ax.imshow(heatmap.max(axis=0)). Input hand-built as a (3,2,2) array
+      where each z-slice owns a different max pixel, so the assertion pins "element-wise max over Z"
+      rather than "take the last slice" (a monotonic np.arange input could not tell those apart).
+      Asserts shape collapsed to (2,2) AND `== pytest.approx(heatmap.max(axis=0))` (derived array ->
+      value equality, not identity).
+    - flow=None + no/None heatmap -> "Flow unavailable\n(model has compute_flow=False)" text.
+    - flow is not an ndarray (a list) -> "Flow Render Error\nflow attribute is not a numpy array" text.
+    - success path -> _flow_to_rgb mocked with return_value=mocker.sentinel.rgb (identity-comparable,
+      sidesteps the ndarray-== ambiguity in assert_called_once_with); asserts _flow_to_rgb got the raw
+      flow array (`call_args[0][0] is flow_details.flow` - unmodified pass-through), ax.imshow got the
+      sentinel, no text, title NOT overridden (stays "Stereographic Flow").
+    - render failure -> ax.imshow.side_effect = RuntimeError("boom") (drives the failure through the
+      SECOND statement in the try, proving recovery from a failure in either line, not just in
+      _flow_to_rgb); asserts "Flow Render Error\nboom" text. Expected string hard-coded, not rebuilt
+      with an f-string, so a source-side message change fails the test loudly.
+    - FatalPipelineError -> ax.imshow.side_effect = FatalPipelineError(...); pytest.raises + (the
+      contrast assertion that makes this test distinct from the render-failure one)
+      ax.text.assert_not_called() - proves `except FatalPipelineError: raise` runs INSTEAD of the
+      placeholder branch. Note: _panel_flow has no code after its try/except, so unlike the other
+      panels there is no "trailing code still runs" assertion to make.
+  test_qc_figures.py now 39 real tests (SpotData 4 + ImageData 7 + PanelSegemntation 6 +
+  PanelSpotDetection 6 + FlowToRGB 8 + PanelFlow 8), 154 total suite-wide (all real now - the 8
+  PanelFlow `pass` stubs are implemented; the remaining empty classes contribute 0 collected tests).
+  Technique notes for the remaining classes:
+    - mocker.sentinel.<name> for a mock's return_value when the test only needs "was THIS object
+      passed on" - compares by identity, so assert_called_once_with(sentinel) works where a real
+      ndarray would raise on ==.
+    - identity (`is`) vs value (`== pytest.approx`): assert `is` when the production code forwards the
+      argument untouched (stronger - also catches an accidental copy/transpose); switch to
+      pytest.approx the moment the code derives a new array (.max(), slicing, np.asarray).
+    - when two tests exist to prove two branches behave DIFFERENTLY (render-failure placeholder vs
+      FatalPipelineError re-raise), each needs an assertion the other fails - here
+      ax.text.assert_not_called() in the fatal test. Without it both tests just say "didn't crash".
+  KNOWN (user to fix before commit): line ~513 `assert ... == f"Flow Render Error\nboom"` has an
+  f-string with no placeholders -> ruff F541. Drop the `f` prefix. (pre-commit ruff-check --fix would
+  auto-strip it anyway, but cleaner to fix in place.)
+  NEXT: TestPanelZDistribution - user has already left a "# split in 2" marker in the stub. _panel_z_
+  distribution has two fully independent top-level branches gated on spots.is_3d: the 3D path draws a
+  per-object stacked histogram of spots-per-z-plane (with its own inner legend-gating on n_obj < 10);
+  the 2D path computes nearest-neighbour distances via scipy KDTree + an inner try/except'd
+  gaussian_kde curve. Plus the shared `if not spots.has_spots` early-out ("No Spots Detected" +
+  axis off) above both, and the 2D-path's own `len(coordinates) < 2` -> "Insufficient Spots for NND"
+  sub-case. Each branch has its own except FatalPipelineError: raise / except Exception ->
+  "Failed to render" wrapper, and the 2D path has a SECOND nested try/except around just the KDE fit
+  (a failed fit drops the smoothed curve but keeps the histogram) - that inner one also has its own
+  except FatalPipelineError: raise. So: has_spots=False, 3D happy path, 3D n_obj<10 legend vs
+  n_obj>=10 no-legend, 3D render failure + fatal, 2D <2 spots, 2D happy path, 2D KDE-only failure
+  (curve dropped, hist kept), 2D outer render failure + fatal.
 - everything else has real coverage: test_run_pipeline.py (12, real PipelineConfig fixtures as of 2026-07-29
   - see item 5), test_model_bundle.py (14 as of 2026-07-30, up from 8 - flag-wins precedence coverage added,
   see item 5), test_object_measurement.py (11), test_detection.py (5), test_segmentation.py (7),

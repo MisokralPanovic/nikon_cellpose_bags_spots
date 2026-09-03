@@ -8,6 +8,8 @@ from spot_detector.exceptions import FatalPipelineError
 from spot_detector.qc_figures import (
     ImageData,
     SpotData,
+    _flow_to_rgb,
+    _panel_flow,
     _panel_segemntation,
     _panel_spot_detection,
 )
@@ -355,12 +357,184 @@ class TestPanelSpotDetection:
         ax.set_title.assert_not_called()
 
 
+class TestFlowToRGB:
+    def test_2d_output_contract(self):
+        rng = np.random.default_rng(0)
+        flow_data = rng.standard_normal((6, 7, 3))
+
+        out = _flow_to_rgb(flow_data=flow_data)
+
+        assert out.shape == (6, 7, 3)
+        assert out.dtype == np.float32
+        assert out.min() >= 0.0
+        assert out.max() <= 1.0
+
+    def test_3d_output_collapses_z_axis(self):
+        rng = np.random.default_rng(0)
+        flow_data = rng.standard_normal((9, 6, 7, 4))
+
+        out = _flow_to_rgb(flow_data=flow_data)
+
+        assert out.shape == (6, 7, 3)
+        assert out.dtype == np.float32
+
+    def test_3d_selects_highest_magnitude_z(self):
+        vol = np.zeros((9, 6, 7, 4))
+        vol[1, :, :, 2] = 3.0  # fy on the "loud" slice
+        vol[1, :, :, 3] = 4.0  # fx on the "loud" slice
+        # slice 0 stays all-zero → mean XY magnitude 0 → not selected
+
+        equiv_2d = np.zeros((6, 7, 4))
+        equiv_2d[:, :, 1] = 3.0  # fy for the 2D branch (index 1, not 2)
+        equiv_2d[:, :, 2] = 4.0  # fx for the 2D branch (index 2, not 3)
+
+        assert _flow_to_rgb(flow_data=vol) == pytest.approx(
+            _flow_to_rgb(flow_data=equiv_2d)
+        )
+
+    def test_3d_ignores_stereographic_and_z_channels(self):
+        vol = np.zeros((9, 6, 7, 4))
+        vol[0, :, :, 0] = 100.0  # stereographic component — must be ignored
+        vol[0, :, :, 1] = 100.0  # z-flow component — must be ignored
+        # indices 2 (fy) and 3 (fx) stay 0.0
+
+        out = _flow_to_rgb(flow_data=vol)
+
+        assert out == pytest.approx(1.0)
+
+    def test_zero_flow_is_white(self):
+        flow_data = np.zeros((4, 5, 3))
+
+        out = _flow_to_rgb(flow_data=flow_data)
+
+        assert out == pytest.approx(1.0)
+
+    @pytest.mark.parametrize("shape", [(4, 5), (4, 5, 2), (2, 4, 5, 2)])
+    def test_bad_shape_raises_valueerror(self, shape):
+        with pytest.raises(ValueError):
+            _flow_to_rgb(flow_data=np.zeros(shape))
+
+
 class TestPanelFlow:
-    pass
+    def test_none_details_draws_placeholder(self, ax):
+        flow_details = None
+
+        _panel_flow(ax=ax, flow_details=flow_details)  # type: ignore[arg-type]
+
+        ax.text.assert_called_once()
+        assert ax.text.call_args[0][2] == "No Flow Data Provided"
+        ax.imshow.assert_not_called()
+        ax.set_title.assert_called_with("Stereographic Flow")
+
+    def test_flow_none_heatmap_2d_shows_heatmap(self, ax):
+        flow_details = SimpleNamespace(
+            flow=None, heatmap=np.arange(12).reshape(3, 4).astype(float)
+        )
+
+        _panel_flow(ax=ax, flow_details=flow_details)  # type: ignore[arg-type]
+
+        ax.imshow.assert_called_once()
+        args, kwargs = ax.imshow.call_args
+        assert kwargs["cmap"] == "magma"
+        assert args[0] is flow_details.heatmap
+        ax.set_title.assert_called_with(
+            "Probability Heatmap\n(flow unavailable — subpix disabled)"
+        )
+
+    def test_flow_none_heatmap_3d_max_projects(self, ax):
+        heatmap = np.array(
+            [
+                [[9.0, 0.0], [0.0, 0.0]],
+                [[0.0, 0.0], [0.0, 9.0]],
+                [[0.0, 9.0], [0.0, 0.0]],
+            ]
+        )  # (3, 2, 2)  ->  max(axis=0) == [[9, 9], [0, 9]]
+        flow_details = SimpleNamespace(flow=None, heatmap=heatmap)
+
+        _panel_flow(ax=ax, flow_details=flow_details)  # type: ignore[arg-type]
+
+        ax.imshow.assert_called_once()
+        args, kwargs = ax.imshow.call_args
+        assert args[0].shape == (2, 2)
+        assert args[0] == pytest.approx(heatmap.max(axis=0))
+        assert kwargs["cmap"] == "magma"
+        ax.set_title.assert_called_with(
+            "Probability Heatmap\n(flow unavailable — subpix disabled)"
+        )
+
+    def test_flow_none_no_heatmap_text_fallback(self, ax):
+        flow_details = SimpleNamespace(flow=None, heatmap=None)
+
+        _panel_flow(ax=ax, flow_details=flow_details)  # type: ignore[arg-type]
+
+        ax.text.assert_called_once()
+        assert (
+            ax.text.call_args[0][2]
+            == "Flow unavailable\n(model has compute_flow=False)"
+        )
+        ax.imshow.assert_not_called()
+
+    def test_non_ndarray_flow_text_fallback(self, ax):
+        flow_details = SimpleNamespace(flow=[1, 2, 3], heatmap=None)
+
+        _panel_flow(ax=ax, flow_details=flow_details)  # type: ignore[arg-type]
+
+        ax.text.assert_called_once()
+        assert (
+            ax.text.call_args[0][2]
+            == "Flow Render Error\nflow attribute is not a numpy array"
+        )
+        ax.imshow.assert_not_called()
+
+    def test_success_path_calls_flow_to_rgb_and_imshow(self, mocker: MockerFixture, ax):
+        flow_details = SimpleNamespace(flow=np.zeros((4, 5, 3)), heatmap=None)
+
+        mock_flow = mocker.patch(
+            "spot_detector.qc_figures._flow_to_rgb", return_value=mocker.sentinel.rgb
+        )
+        _panel_flow(ax=ax, flow_details=flow_details)  # type: ignore[arg-type]
+
+        mock_flow.assert_called_once()
+        assert mock_flow.call_args[0][0] is flow_details.flow
+        ax.imshow.assert_called_once_with(mocker.sentinel.rgb)
+        ax.text.assert_not_called()
+        ax.set_title.assert_called_with("Stereographic Flow")
+
+    def test_render_failure_falls_back_to_placeholder(self, mocker: MockerFixture, ax):
+        ax.imshow.side_effect = RuntimeError("boom")
+        flow_details = SimpleNamespace(flow=np.zeros((4, 5, 3)), heatmap=None)
+
+        mocker.patch(
+            "spot_detector.qc_figures._flow_to_rgb", return_value=mocker.sentinel.rgb
+        )
+        _panel_flow(ax=ax, flow_details=flow_details)  # type: ignore[arg-type]
+
+        ax.text.assert_called_once()
+        assert ax.text.call_args[0][2] == "Flow Render Error\nboom"
+
+    def test_fatal_pipeline_error_propagates_uncaught(self, mocker: MockerFixture, ax):
+        ax.imshow.side_effect = FatalPipelineError("unrecoverable")
+        flow_details = SimpleNamespace(flow=np.zeros((4, 5, 3)), heatmap=None)
+
+        mocker.patch(
+            "spot_detector.qc_figures._flow_to_rgb", return_value=mocker.sentinel.rgb
+        )
+        with pytest.raises(FatalPipelineError):
+            _panel_flow(ax=ax, flow_details=flow_details)  # type: ignore[arg-type]
 
 
 class TestPanelZDistribution:
-    pass
+    # spots.has_spots = False
+    def test_no_spots_draws_placeholder(self, ax):
+        pass
+
+    class TestIs3dTrue:
+        # spots.has_spots = True, spots.is_3d = True
+        pass
+
+    class TestIs3dFalse:
+        # spots.has_spots = True, spots.is_3d = False
+        pass
 
 
 class TestPanelECFD:
