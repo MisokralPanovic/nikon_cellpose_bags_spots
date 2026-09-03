@@ -538,10 +538,8 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
     - render failure vs fatal: ax.axvline.side_effect (axvline is the last statement in the try) =
       RuntimeError -> "Failed to render" + trailing set_title runs; = FatalPipelineError -> pytest.raises
       + trailing set_title NOT called.
-  OUTSTANDING TWEAK (user to fix): the fatal test's `ax.set_title.assert_not_called()` is indented INSIDE
-  the `with pytest.raises(...)` block, after the raising call -> unreachable, never runs. Dedent it one
-  level to sit after the `with` block (the two TestPanelZDistribution fatal tests already have this
-  right). Test still passes and still proves propagation; only the contrast assertion is currently inert.
+  (fixed 2026-09-03: the fatal test's `ax.set_title.assert_not_called()` was indented INSIDE the
+  `with pytest.raises(...)` block -> unreachable dead code; dedented to sit after the block.)
   test_qc_figures.py at 55 tests, 170 suite-wide.
   Two mock gotchas hit and fixed while writing this (see LEARNING_NOTES.md 2026-09-03 cont'd):
     - `mock.call_args` is the LAST call only; `call_args[0]`/`call_args[1]` are its (args, kwargs), NOT
@@ -558,6 +556,67 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
   "Failed to render" around the scatter block only. Tests: contour drawn / contour skipped when
   masks_2d all background; 3D scatter + colorbar; 2D scatter; no-spots (contour still drawn, no
   scatter); render failure + fatal (scatter block). Then the 3 figure-builder classes.
+
+  DONE 2026-09-03 (cont'd): TestPanelSpotmap written (learning-mode - Claude advised, user wrote every
+  test). 7 tests, flat class, all pass, ruff+format clean.
+    - images.segmentation_image is read UNCONDITIONALLY (first two lines: img_h/img_w from
+      .shape[-2]/[-1]), so every test sets it even the contour-only / no-spots ones - np.zeros((4,4))
+      suffices, only the shape is used.
+    - contour block has NO try/except (only the scatter block does) - a failure there would propagate
+      uncaught, asymmetry noted but not tested.
+    - contour drawn: masks_2d [[0,1],[2,0]] -> levels = unique[unique>0] - 0.5 = [0.5,1.5] -> ax.contour
+      called. contour skipped: masks_2d all-zero -> levels empty -> len(levels) > 0 False -> not called.
+    - 3D scatter: ax.scatter(c=z_um, cmap="turbo"); ax.get_figure() on a MagicMock ax already returns a
+      non-None mock, so the colorbar path runs with zero patching - assert
+      ax.get_figure.return_value.colorbar.assert_called_once(). 2D scatter: color="#4FC3F7".
+    - render failure vs fatal: ax.scatter.side_effect = RuntimeError -> "Failed to render" + trailing
+      set_aspect("equal") STILL runs (assert_called_once); = FatalPipelineError -> pytest.raises +
+      set_aspect NOT called (assert_not_called, AFTER the with block). set_aspect is this panel's
+      "trailing code" marker (last unconditional line), same role set_title plays elsewhere.
+    - the x/y-None defensive guard (has_spots True but x/y None -> scatter skipped) is covered by
+      test_no_spots_still_draws_contours_no_scatter (has_spots=False + x/y None together).
+  test_qc_figures.py now 62 tests, 177 suite-wide.
+
+  NEXT (tomorrow, user's call): EITHER do items 7+8 first (split qc_figures.py -> qc_figures.py +
+  qc_panels.py, and the fixture/readability pass on the test file) OR finish the last 3 figure-builder
+  classes. User leans 7+8 first - the panel coverage that de-risks the split is now done, and the 3
+  builder classes land just as easily after the split. Claude agrees with that ordering.
+
+  FIGURE-BUILDER TEST PLAN (agreed 2026-09-03, user "i like the plan" - use this when the 3 classes get
+  written, whenever that is):
+  Principle: these are ORCHESTRATORS, not leaf drawers. The 6 _panel_* helpers are already tested
+  directly, and _process_scene's figure-level resilience wrapper is tested in test_run_pipeline.py
+  (item 1). So the builders need only: (a) a smoke test per mode - real render to a tmp_path PNG, assert
+  the file exists + nothing raised; and (b) targeted tests for the builder's OWN logic (the mode branch,
+  dispatch to collaborators, figure cleanup). Do NOT assert on plot contents / artist props / colors /
+  positions - brittle, ~zero bug-catching value. Smoke tests are NOT worthless here: they catch import
+  errors, matplotlib/seaborn API drift, wrong arg counts to panels, KeyError on a renamed DataFrame
+  column, savefig failures. The DataFrame column contract (hard-coded "Spot_Count"/"Scene"/"Area_um2"
+  etc.) is the single biggest real risk and a realistic-df smoke test is what catches an upstream rename.
+  These will be the first tests in the file to actually render (all panel tests mock `ax`) - that's
+  correct, and Agg is already forced in qc_figures.py so it stays offline/fast (~1s for all).
+    TestMakeQCFigure:
+      - test_smoke_2d / test_smoke_3d: real minimal arrays, out_path = tmp_path/"x.png",
+        assert out_path.exists(), no raise. LET THE REAL PANELS RUN (valid-input knowledge already
+        exists across the panel test classes) - makes this a real integration test for ~free.
+      - test_dispatches_to_all_six_panels: mocker.patch the 6 _panel_*, assert each called once
+        (optionally with ax == the right axes_flat[i]).
+      - test_closes_figure: assert plt.close called - unclosed-figure leak is a real long-run OOM class
+        (make_qc_figure runs once per scene, 21-scene runs exist).
+    TestMakeSceneSummaryFigure:
+      - test_smoke_2d / test_smoke_3d: small real DataFrame with the expected columns
+        (Scene, Spot_Count, Area_um2 / Volume_um3), assert file written. Let seaborn actually run on the
+        tiny df - only way the column-name check bites.
+      - (optional) test_3d_selects_volume_columns: mock sns.boxplot, assert y="Volume_um3" when
+        mode="3d".
+    TestMakeRunSummaryFigure:
+      - test_smoke_2d / test_smoke_3d: same, columns Condition, Spot_Density_per_um2 / _per_um3,
+        Volume_um3 / Area_um2.
+      - (optional) test_cv_panel: the groupby("Condition")["Spot_Count"].agg(x.std()/x.mean()) is real
+        arithmetic - worth one test IF reachable; currently inline in the sns.scatterplot call, so only
+        assertable if cv_df gets extracted first. Skip otherwise.
+  ~8 core tests + ~2 optional, mostly smoke. Guards the two real risks: the mode branch and the
+  DataFrame/argument column contract.
 
   DONE 2026-09-03: TestPanelFlow written (learning-mode - Claude advised, user wrote every test). 8
   tests, all pass, back to the mocked-`ax` panel style but also mocking _flow_to_rgb itself for the

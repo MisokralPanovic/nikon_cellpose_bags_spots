@@ -63,7 +63,37 @@ Result: 11 tests, all pass, ruff clean. `test_qc_figures.py` at 50 tests, 165 su
 `test_qc_figures.py` at 55 tests, 170 suite-wide. Also logged (todo.txt item 8): a later dedicated pass
 to pull repeated per-test setup into fixtures — `TestIs3dTrue.valid_3d` is the model; `TestPanelECFD`
 and `TestIs3dFalse` are the worst repeaters. Deferred, same "green suite as safety net" reasoning as the
-module split. Next: `TestPanelSpotmap`.
+module split.
+
+### `TestPanelSpotmap` (same session) — MagicMock chains for free
+
+- **A `MagicMock` returns a non-`None` mock from every method call, recursively — so `if fig is not
+  None:` guards pass without any patching.** `_panel_spotmap`'s 3D branch does `fig = ax.get_figure()`
+  then `if fig is not None: fig.colorbar(...)`. Since `ax` is a `MagicMock`, `ax.get_figure()` is already
+  a mock (truthy), the colorbar block runs, and you assert on it via
+  `ax.get_figure.return_value.colorbar.assert_called_once()`. My first instinct was `mocker.patch(...)`
+  — wrong target *and* unnecessary. Only patch when you need a *specific* return value (e.g.
+  `ax.get_figure.return_value = None` to test the skip path — a plain assignment, still not `mocker.patch`).
+- **Find the panel's "trailing code" line and use it for the failure-vs-fatal contrast.** Each panel has
+  a last unconditional statement that runs after the `try/except`: `_panel_segemntation` → `add_artist`,
+  `_panel_spot_detection`/`_panel_ecdf` → `set_title`, `_panel_z_distribution` → `set_title`,
+  `_panel_spotmap` → `set_aspect("equal")`. Render-failure test asserts it *was* called; fatal test
+  asserts it was *not*. That's the assertion that proves the two `except` branches diverge.
+
+End of 2026-09-03: all 6 `_panel_*` helpers covered, plus `SpotData`/`ImageData`/`_flow_to_rgb`.
+`test_qc_figures.py` at 62 tests, 177 suite-wide. Remaining: the 3 figure-builder classes
+(`make_qc_figure` + the 2 seaborn summary builders). Decision for next session (todo.txt item 4 NEXT):
+finish those 3, or do the `qc_figures.py` split (item 7) + the fixture pass (item 8) first now that the
+panel coverage that de-risks the split is done — leaning split-first.
+
+**Figure-builder test approach — agreed, recorded in full in todo.txt item 4.** The lesson worth
+carrying: functions that *orchestrate* other tested functions get **smoke tests, not content tests**. A
+smoke test (real render to `tmp_path`, assert the file exists, assert no raise) looks trivial but is a
+real regression guard — it catches import errors, library API drift, wrong arg counts to collaborators,
+and `KeyError` on a renamed DataFrame column. Asserting on plot *contents* (colors, positions, artist
+props) is brittle and catches almost nothing. Add targeted tests only for the orchestrator's *own*
+logic — here that's the `mode == "3d"` branch (which metric/column it picks) and dispatch to the 6
+panels. Don't re-test what the leaf functions already cover.
 
 **Session goal:** write `TestPanelFlow` (8 tests) covering `_panel_flow`'s branch cascade — a `None` guard,
 two heatmap-fallback branches, a non-ndarray guard, the success path, and the two exception outcomes. Back

@@ -13,6 +13,7 @@ from spot_detector.qc_figures import (
     _panel_flow,
     _panel_segemntation,
     _panel_spot_detection,
+    _panel_spotmap,
     _panel_z_distribution,
 )
 
@@ -818,7 +819,165 @@ class TestPanelECFD:
 
 
 class TestPanelSpotmap:
-    pass
+    def test_draw_object_contours(self, ax):
+        images = SimpleNamespace(
+            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
+        )
+        spots = SimpleNamespace(
+            has_spots=False,
+            dx=0.2,
+        )
+
+        _panel_spotmap(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+        )
+
+        ax.contour.assert_called_once()
+        ax.scatter.assert_not_called()
+
+    def test_skip_contour_when_masks_all_background(self, ax):
+        images = SimpleNamespace(
+            segmentation_image=np.zeros((4, 4)), masks_2d=np.zeros((2, 2))
+        )
+        spots = SimpleNamespace(
+            has_spots=True,
+            is_3d=True,
+            x=np.array([1, 2]),
+            y=np.array([3, 4]),
+            z_um=np.array([0.5, 1.0]),
+            dx=0.2,
+        )
+
+        _panel_spotmap(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+        )
+
+        ax.contour.assert_not_called()
+
+    def test_3d_scatter_coloured_by_z_with_colourbar(self, ax):
+        images = SimpleNamespace(
+            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
+        )
+        spots = SimpleNamespace(
+            has_spots=True,
+            is_3d=True,
+            x=np.array([1, 2]),
+            y=np.array([3, 4]),
+            z_um=np.array([0.5, 1.0]),
+            dx=0.2,
+        )
+
+        _panel_spotmap(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+        )
+
+        ax.scatter.assert_called_once()
+        assert ax.scatter.call_args.kwargs["cmap"] == "turbo"
+        assert ax.scatter.call_args.kwargs["c"].tolist() == [
+            0.5,
+            1.0,
+        ]  # coloured by z_um
+
+        fig = ax.get_figure.return_value
+        fig.colorbar.assert_called_once()
+
+    def test_2d_scatter_uniform_colour(self, ax):
+        images = SimpleNamespace(
+            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
+        )
+        spots = SimpleNamespace(
+            has_spots=True,
+            is_3d=False,
+            x=np.array([1, 2]),
+            y=np.array([3, 4]),
+            z_um=np.array([0.5, 1.0]),
+            dx=0.2,
+        )
+
+        _panel_spotmap(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+        )
+
+        ax.scatter.assert_called_once()
+        assert ax.scatter.call_args.kwargs["color"] == "#4FC3F7"
+
+    def test_no_spots_still_draws_contours_no_scatter(self, ax):
+        images = SimpleNamespace(
+            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
+        )
+        spots = SimpleNamespace(
+            has_spots=False,
+            is_3d=False,
+            x=None,
+            y=None,
+            z_um=None,
+            dx=0.2,
+        )
+
+        _panel_spotmap(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+        )
+
+        ax.contour.assert_called_once()
+        ax.scatter.assert_not_called()
+
+    def test_render_failure_falls_back_to_placeholder(self, ax):
+        ax.scatter.side_effect = RuntimeError("boom")
+        images = SimpleNamespace(
+            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
+        )
+        spots = SimpleNamespace(
+            has_spots=True,
+            is_3d=True,
+            x=np.array([1, 2]),
+            y=np.array([3, 4]),
+            z_um=np.array([0.5, 1.0]),
+            dx=0.2,
+        )
+
+        _panel_spotmap(
+            ax=ax,
+            images=images,  # type: ignore[arg-type]
+            spots=spots,  # type: ignore[arg-type]
+        )
+
+        ax.text.assert_called_once()
+        assert ax.text.call_args[0][2] == "Failed to render"
+        ax.set_aspect.assert_called_once()
+
+    def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+        ax.scatter.side_effect = FatalPipelineError("unrecoverable")
+        images = SimpleNamespace(
+            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
+        )
+        spots = SimpleNamespace(
+            has_spots=True,
+            is_3d=True,
+            x=np.array([1, 2]),
+            y=np.array([3, 4]),
+            z_um=np.array([0.5, 1.0]),
+            dx=0.2,
+        )
+
+        with pytest.raises(FatalPipelineError):
+            _panel_spotmap(
+                ax=ax,
+                images=images,  # type: ignore[arg-type]
+                spots=spots,  # type: ignore[arg-type]
+            )
+
+        # early exit: the title/axis code after the try/except never runs
+        ax.set_aspect.assert_not_called()
 
 
 # =====================================================================
