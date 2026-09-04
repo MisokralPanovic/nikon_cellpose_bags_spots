@@ -106,11 +106,15 @@ Key modules under `src/spot_detector/`:
   in `run_pipeline.py`) — turns masks + spot labels into a tidy per-object DataFrame via `skimage.regionprops_table`.
   2D and 3D modes populate disjoint sets of columns (e.g. `Volume_um3` is NaN in 2D, `Area_um2`/`Eccentricity` are
   NaN in 3D) rather than using separate schemas — this is intentional, keep both modes on one flat column set.
-- `qc_figures.py` — all matplotlib/seaborn plotting. `SpotData` and `ImageData` are dataclasses that derive
-  pixel/micron coordinate arrays from raw detector/image output (`__post_init__` does the unit conversion — treat
-  them as read-only views, not places to add pipeline logic). Three figure builders correspond to the three levels
-  of aggregation: `make_qc_figure` (per scene), `make_scene_summary_figure` (per condition/file), and
-  `make_run_summary_figure` (whole run).
+- `qc_figures.py` / `qc_panels.py` — all matplotlib/seaborn plotting, split on the public/private boundary
+  (2026-09-04, `todo.txt` item 7). `qc_figures.py` is the public API: the three figure builders, one per level
+  of aggregation — `make_qc_figure` (per scene), `make_scene_summary_figure` (per condition/file),
+  `make_run_summary_figure` (whole run). `run_pipeline.py` imports only from here; the split was a pure internal
+  refactor, no caller changed. `qc_panels.py` holds everything private that `make_qc_figure` composes: `SpotData`
+  and `ImageData` (dataclasses that derive pixel/micron coordinate arrays from raw detector/image output —
+  `__post_init__` does the unit conversion, treat them as read-only views, not places to add pipeline logic),
+  `_flow_to_rgb`, and the six `_panel_*` helpers. `make_scene_summary_figure`/`make_run_summary_figure` draw
+  their panels inline (no `_panel_*` extraction) — see `todo.txt` item 1 for why.
 
 Config schema (`configs/config.yml`, validated by `config.py`'s `PipelineConfig`): `mode.do_3d`,
 `paths.{raw_data_dir,out_dir}`, `channels.{segmentation_image,spot_image}` (channel indices into the raw
@@ -143,11 +147,12 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 177 tests as of 2026-09-03.
-`test_qc_figures.py` is still being built out (62 tests so far — all 6 `_panel_*` helpers plus
-`SpotData`/`ImageData`/`_flow_to_rgb` are covered; the 3 figure-builder classes `TestMakeQCFigure` /
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 177 tests as of 2026-09-04.
+The qc-plotting split (`todo.txt` item 7) is mirrored in the tests: `test_qc_panels.py` covers `qc_panels.py`
+(all 6 `_panel_*` helpers plus `SpotData`/`ImageData`/`_flow_to_rgb` — 62 tests, done), `test_qc_figures.py`
+covers the three figure builders and is still being built out (the classes `TestMakeQCFigure` /
 `TestMakeSceneSummaryFigure` / `TestMakeRunSummaryFigure` are still empty `pass` stubs; see `todo.txt`
-item 4). It is also the first test file to use nested test classes (`TestPanelZDistribution`'s
+item 4). `test_qc_panels.py` is also the first test file to use nested test classes (`TestPanelZDistribution`'s
 `TestIs3dTrue` / `TestIs3dFalse`), for a panel with two independent `is_3d` branches. Tests
 mock heavy ML dependencies (Cellpose/Spotiflow model calls) via `pytest-mock` rather than loading real models
 or real microscopy files — keep new tests fast and offline.

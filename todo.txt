@@ -861,12 +861,22 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
   leaning (a) since it's a real fix rather than just surfacing the limitation, but not decided.
 ---
 
-7. code organization: split qc_figures.py   <- AGREED 2026-09-03, DEFERRED until test_qc_figures.py is done
-   (item 4). qc_figures.py is 1030 lines, the largest module in the repo. Do NOT start the split until the
-   remaining test_qc_figures.py classes (TestPanelZDistribution, TestPanelECFD, TestPanelSpotmap,
-   TestMakeQCFigure, TestMakeSceneSummaryFigure, TestMakeRunSummaryFigure) are written and the full suite
-   is green - that coverage is the safety net that makes the move safe. Then do source + tests + docs as
-   ONE dedicated commit (user commits, as always).
+7. code organization: split qc_figures.py   <- DONE 2026-09-04. Split executed on the panel-coverage safety
+   net (all 6 _panel_* test classes green), before the 3 figure-builder classes - the ordering the user
+   landed on 2026-09-03 (see the NEXT note further up), since those 3 classes stay in test_qc_figures.py
+   post-split anyway and land just as easily after.
+   Executed exactly as scoped below: src/spot_detector/qc_panels.py (715 lines) = SpotData, ImageData,
+   _flow_to_rgb, all 6 _panel_* helpers, verbatim (diff-verified: panel bodies unchanged, only section-
+   header comments differ). src/spot_detector/qc_figures.py (345 lines) = the 3 public make_* builders only,
+   now `from spot_detector.qc_panels import (...)` at the top. run_pipeline.py's import line is UNCHANGED
+   (`from spot_detector.qc_figures import make_qc_figure, ...`) - pure internal refactor, zero caller change,
+   grep-confirmed no other src/ module references any moved name. Tests mirror 1:1: tests/test_qc_panels.py
+   (980 lines, all 9 panel/dataclass classes) + tests/test_qc_figures.py (now just the 3 builder stub
+   classes; its now-unused import block was stripped - all imports were dead once only the `pass` stubs
+   remained). Full suite green (177), ruff check + format clean. CLAUDE.md updated: "Key modules" bullet
+   now describes both files + the public/private cut rationale, Testing conventions paragraph names
+   test_qc_panels.py and moves the "first nested test classes" note onto it. AGREED 2026-09-03 details:
+   qc_figures.py was 1030 lines, the largest module in the repo.
    The cut (clean because everything except the 3 public make_* builders is `_`-prefixed / private):
      - qc_figures.py STAYS as the public API: make_qc_figure, make_scene_summary_figure,
        make_run_summary_figure (the only names run_pipeline.py imports - callers see zero change), imports
