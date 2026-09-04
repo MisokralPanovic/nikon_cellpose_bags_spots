@@ -150,9 +150,11 @@ Tests live in `tests/`, one file per source module (`test_segmentation.py` cover
 `test_object_measurement.py` covers `obejct_measurement.py`, etc.), 177 tests as of 2026-09-04.
 The qc-plotting split (`todo.txt` item 7) is mirrored in the tests: `test_qc_panels.py` covers `qc_panels.py`
 (all 6 `_panel_*` helpers plus `SpotData`/`ImageData`/`_flow_to_rgb` — 62 tests, done), `test_qc_figures.py`
-covers the three figure builders and is still being built out (the classes `TestMakeQCFigure` /
-`TestMakeSceneSummaryFigure` / `TestMakeRunSummaryFigure` are still empty `pass` stubs; see `todo.txt`
-item 4). `test_qc_panels.py` is also the first test file to use nested test classes (`TestPanelZDistribution`'s
+covers the three figure builders and is still being built out (as of 2026-09-04, `TestMakeQCFigure` /
+`TestMakeSceneSummaryFigure` / `TestMakeRunSummaryFigure` have their 9 planned test methods scaffolded by
+name but every body is still an empty `pass` — no real assertions yet; see `todo.txt` item 4's handover
+note for the agreed per-class test plan and two small open placement questions).
+`test_qc_panels.py` is also the first test file to use nested test classes (`TestPanelZDistribution`'s
 `TestIs3dTrue` / `TestIs3dFalse`), for a panel with two independent `is_3d` branches. Its per-class fixtures
 (`valid_segmentation`, `valid_spot_detection`, `valid_ecdf`, `valid_spotmap`, `valid_zdist_2d`, plus the
 original `valid_3d`; `todo.txt` item 8, done 2026-09-04) follow one convention: each returns a dict of valid

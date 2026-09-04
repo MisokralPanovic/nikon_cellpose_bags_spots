@@ -581,6 +581,30 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
   qc_panels.py, and the fixture/readability pass on the test file) OR finish the last 3 figure-builder
   classes. User leans 7+8 first - the panel coverage that de-risks the split is now done, and the 3
   builder classes land just as easily after the split. Claude agrees with that ordering.
+  RESOLVED 2026-09-04: items 7 and 8 both DONE (see their own entries below), in that order, same
+  sitting. The 3 figure-builder classes below are the only thing left open in this item.
+
+  PAUSED 2026-09-04, end of day - HANDOVER NOTE for next session: test_qc_figures.py has all 9 test
+  methods from the FIGURE-BUILDER TEST PLAN below scaffolded as named `pass` stubs (not yet real tests -
+  186 collected suite-wide, but the 9 new ones assert nothing yet, so that number does NOT mean 9 new
+  tests are passing, just that they're collected and trivially green). Imports are already wired at the
+  top of the file: `make_qc_figure`/`make_scene_summary_figure`/`make_run_summary_figure` from
+  `spot_detector.qc_figures`, plus everything from `spot_detector.qc_panels` (needed for
+  `test_dispatches_to_all_six_panels`, which mocks the 6 `_panel_*`). Two small things to sort out before
+  filling these in, next session:
+    - `test_3d_selects_voolume_columns` (typo: "voolume", should be "volume" once written for real) was
+      scaffolded under `TestMakeRunSummaryFigure`, not `TestMakeSceneSummaryFigure` where the plan below
+      originally placed it. Not necessarily wrong - `make_run_summary_figure` has its own is_3d ->
+      Volume_um3/Area_um2 branch (Panel D's size_metric, separate from the norm_metric density branch) so
+      the same test shape applies there too - but worth a quick decision: keep it on run-summary only, add
+      the equivalent to scene-summary too (the plan's original location), or both. Not a bug, just an
+      unresolved placement choice.
+    - `TestMakeSceneSummaryFigure` currently has only the 2 smoke stubs (no volume/area column test at
+      all yet) - matches the plan's "optional" framing for that one, but flagging so it isn't mistaken
+      for an oversight.
+  Working tree has this scaffolding uncommitted (`git status`: modified tests/test_qc_figures.py only) -
+  nothing else pending. Resume by filling in the 9 stub bodies per the FIGURE-BUILDER TEST PLAN
+  immediately below, starting with TestMakeQCFigure per the file's own top-to-bottom order.
 
   FIGURE-BUILDER TEST PLAN (agreed 2026-09-03, user "i like the plan" - use this when the 3 classes get
   written, whenever that is):
