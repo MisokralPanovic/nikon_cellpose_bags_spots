@@ -188,20 +188,24 @@ class TestImageData:
 
 
 class TestPanelSegemntation:
-    def test_draws_seg_image_only_when_no_masks(self, ax):
-        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=None)
+    @pytest.fixture
+    def valid_segmentation(self):
+        return dict(
+            images=SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=None),
+            dx=0.2,
+        )
 
-        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+    def test_draws_seg_image_only_when_no_masks(self, ax, valid_segmentation):
+        _panel_segemntation(ax=ax, **valid_segmentation)
 
         assert ax.imshow.call_count == 1
         _, kwargs = ax.imshow.call_args
         assert kwargs["cmap"] == "gray"
 
-    def test_draw_mask_overlay_when_masks_present(self, ax):
-        masks_2d = np.array([[0, 1], [2, 0]])
-        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=masks_2d)
+    def test_draw_mask_overlay_when_masks_present(self, ax, valid_segmentation):
+        valid_segmentation["images"].masks_2d = np.array([[0, 1], [2, 0]])
 
-        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+        _panel_segemntation(ax=ax, **valid_segmentation)
 
         assert ax.imshow.call_count == 2
         _, overlay_kwargs = ax.imshow.call_args_list[1]
@@ -209,91 +213,81 @@ class TestPanelSegemntation:
         assert overlay_kwargs["cmap"] == "tab10"
         assert overlay_kwargs["vmax"] == 2
 
-    def test_skips_mask_overlay_when_masks_present_but_all_zero(self, ax):
+    def test_skips_mask_overlay_when_masks_present_but_all_zero(
+        self, ax, valid_segmentation
+    ):
         # masks_2d is not None, but no object survived (all background) - the code
         # checks masks_2d.max() > 0, not just "is not None"
-        images = SimpleNamespace(
-            seg_inv_norm=np.zeros((2, 2)), masks_2d=np.zeros((2, 2))
-        )
+        valid_segmentation["images"].masks_2d = np.zeros((2, 2))
 
-        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+        _panel_segemntation(ax=ax, **valid_segmentation)
 
         assert ax.imshow.call_count == 1
 
-    def test_always_add_scalebar_title_and_axis_off(self, ax):
-        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=None)
-
-        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+    def test_always_add_scalebar_title_and_axis_off(self, ax, valid_segmentation):
+        _panel_segemntation(ax=ax, **valid_segmentation)
 
         ax.add_artist.assert_called_once()
         ax.set_title.assert_called_once_with("StDev Projection + Masks")
         ax.axis.assert_called_once_with("off")
 
-    def test_render_failure_falls_back_to_placeholder(self, ax):
+    def test_render_failure_falls_back_to_placeholder(self, ax, valid_segmentation):
         ax.imshow.side_effect = RuntimeError("boom")
-        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=None)
-
-        _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+        _panel_segemntation(ax=ax, **valid_segmentation)
 
         ax.text.assert_called_once()
         assert ax.text.call_args[0][2] == "Failed to render"
         # code after the try/except is unconditional - still runs after a caught failure
         ax.add_artist.assert_called_once()
 
-    def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+    def test_fatal_pipeline_error_propagates_uncaught(self, ax, valid_segmentation):
         ax.imshow.side_effect = FatalPipelineError("unrecoverable")
-        images = SimpleNamespace(seg_inv_norm=np.zeros((2, 2)), masks_2d=None)
 
         with pytest.raises(FatalPipelineError):
-            _panel_segemntation(ax=ax, images=images, dx=0.2)  # type: ignore[arg-type]
+            _panel_segemntation(ax=ax, **valid_segmentation)
 
         # early exit: the scalebar/title/axis code after the try/except never runs
         ax.add_artist.assert_not_called()
 
 
 class TestPanelSpotDetection:
-    def test_no_spots_only_draws_background_image(self, ax):
-        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
-        spots = SimpleNamespace(has_spots=False)
-        spot_labels = np.zeros((2, 2))
-
-        _panel_spot_detection(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-            spot_labels=spot_labels,
+    @pytest.fixture
+    def valid_spot_detection(self):
+        return dict(
+            images=SimpleNamespace(spots_stdev_norm=np.zeros((2, 2))),
+            spots=SimpleNamespace(
+                has_spots=True, x=np.zeros((2, 2)), y=np.zeros((2, 2))
+            ),
+            spot_labels=np.zeros((2, 2)),
         )
+
+    def test_no_spots_only_draws_background_image(self, ax, valid_spot_detection):
+        valid_spot_detection["spots"].has_spots = False
+
+        _panel_spot_detection(ax=ax, **valid_spot_detection)
 
         assert ax.imshow.call_count == 1
         ax.scatter.assert_not_called()
 
-    def test_defensive_guard_skips_scatter_when_x_or_y_is_none(self, ax):
-        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
-        spots = SimpleNamespace(has_spots=True, x=None, y=None)
-        spot_labels = np.zeros((2, 2))
+    def test_defensive_guard_skips_scatter_when_x_or_y_is_none(
+        self, ax, valid_spot_detection
+    ):
+        valid_spot_detection["spots"].has_spots = True
+        valid_spot_detection["spots"].x = None
+        valid_spot_detection["spots"].y = None
 
-        _panel_spot_detection(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-            spot_labels=spot_labels,
-        )
+        _panel_spot_detection(ax=ax, **valid_spot_detection)
 
         ax.scatter.assert_not_called()
 
-    def test_splits_spots_by_inside_vs_background(self, ax):
-        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
-        spots = SimpleNamespace(
-            has_spots=True, x=np.array([1, 2, 3, 4]), y=np.array([10, 20, 30, 40])
-        )
-        spot_labels = np.array([0, 1, 0, 2])  # spots 0,2 background; 1,3 assigned
+    def test_splits_spots_by_inside_vs_background(self, ax, valid_spot_detection):
+        valid_spot_detection["spots"].x = np.array([1, 2, 3, 4])
+        valid_spot_detection["spots"].y = np.array([10, 20, 30, 40])
+        valid_spot_detection["spot_labels"] = np.array(
+            [0, 1, 0, 2]
+        )  # spots 0,2 background; 1,3 assigned
 
-        _panel_spot_detection(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-            spot_labels=spot_labels,
-        )
+        _panel_spot_detection(ax=ax, **valid_spot_detection)
 
         assert ax.scatter.call_count == 2
 
@@ -309,52 +303,29 @@ class TestPanelSpotDetection:
         assert in_kwargs["c"].tolist() == [1, 2]
         assert in_kwargs["cmap"] == "tab10"
 
-    def test_always_add_title_and_axis_off(self, ax):
-        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
-        spots = SimpleNamespace(has_spots=False)
-        spot_labels = np.zeros((2, 2))
+    def test_always_add_title_and_axis_off(self, ax, valid_spot_detection):
+        valid_spot_detection["spots"].has_spots = False
 
-        _panel_spot_detection(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-            spot_labels=spot_labels,
-        )
+        _panel_spot_detection(ax=ax, **valid_spot_detection)
 
         ax.set_title.assert_called_once_with("Spot Detections (StDev Proj)")
         ax.axis.assert_called_once_with("off")
 
-    def test_render_failure_falls_back_to_placeholder(self, ax):
+    def test_render_failure_falls_back_to_placeholder(self, ax, valid_spot_detection):
         ax.imshow.side_effect = RuntimeError("boom")
-        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
-        spots = SimpleNamespace(has_spots=True, x=np.zeros((2, 2)), y=np.zeros((2, 2)))
-        spot_labels = np.zeros((2, 2))
 
-        _panel_spot_detection(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-            spot_labels=spot_labels,
-        )
+        _panel_spot_detection(ax=ax, **valid_spot_detection)
 
         ax.text.assert_called_once()
         assert ax.text.call_args[0][2] == "Failed to render"
         # code after the try/except is unconditional - still runs after a caught failure
         ax.set_title.assert_called_once()
 
-    def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+    def test_fatal_pipeline_error_propagates_uncaught(self, ax, valid_spot_detection):
         ax.imshow.side_effect = FatalPipelineError("unrecoverable")
-        images = SimpleNamespace(spots_stdev_norm=np.zeros((2, 2)))
-        spots = SimpleNamespace(has_spots=True, x=np.zeros((2, 2)), y=np.zeros((2, 2)))
-        spot_labels = np.zeros((2, 2))
 
         with pytest.raises(FatalPipelineError):
-            _panel_spot_detection(
-                ax=ax,
-                images=images,  # type: ignore[arg-type]
-                spots=spots,  # type: ignore[arg-type]
-                spot_labels=spot_labels,
-            )
+            _panel_spot_detection(ax=ax, **valid_spot_detection)
 
         # early exit: the title/axis code after the try/except never runs
         ax.set_title.assert_not_called()
@@ -612,136 +583,94 @@ class TestPanelZDistribution:
 
     class TestIs3dFalse:
         # spots.has_spots = True, spots.is_3d = False
-        def test_insufficient_spots_for_nnd(self, ax):
-            spots = SimpleNamespace(
-                has_spots=True, is_3d=False, coordinates=np.array([[1.0, 2.0]]), dx=1.0
+        @pytest.fixture
+        def valid_zdist_2d(self):
+            return dict(
+                images=...,
+                spots=SimpleNamespace(
+                    has_spots=True,
+                    is_3d=False,
+                    coordinates=np.array(
+                        [[0.0, 0.0], [1.0, 0.0], [5.0, 0.0], [20.0, 0.0]]
+                    ),
+                    dx=1.0,
+                ),
+                spot_labels=...,
             )
 
-            _panel_z_distribution(
-                ax=ax,
-                images=...,  # type: ignore[arg-type]
-                spots=spots,  # type: ignore[arg-type]
-                spot_labels=...,  # type: ignore[arg-type]
-            )
+        def test_insufficient_spots_for_nnd(self, ax, valid_zdist_2d):
+            valid_zdist_2d["spots"].coordinates = np.array([[1.0, 2.0]])
+
+            _panel_z_distribution(ax=ax, **valid_zdist_2d)
 
             ax.text.assert_called_once()
             assert ax.text.call_args[0][2] == "Insufficient Spots for NND"
             ax.grid.assert_any_call(False)
             ax.hist.assert_not_called()
 
-        def test_nnd_histogram_and_kde_curve(self, ax):
-            spots = SimpleNamespace(
-                has_spots=True,
-                is_3d=False,
-                coordinates=np.array(
-                    [[0.0, 0.0], [1.0, 0.0], [5.0, 0.0], [20.0, 0.0]]
-                ),  # NND [1,1,4,15] has variance
-                dx=1.0,
-            )
+        def test_nnd_histogram_and_kde_curve(self, ax, valid_zdist_2d):
+            valid_zdist_2d["spots"].coordinates = np.array(
+                [[0.0, 0.0], [1.0, 0.0], [5.0, 0.0], [20.0, 0.0]]
+            )  # NND [1,1,4,15] has variance
 
-            _panel_z_distribution(
-                ax=ax,
-                images=...,  # type: ignore[arg-type]
-                spots=spots,  # type: ignore[arg-type]
-                spot_labels=...,  # type: ignore[arg-type]
-            )
+            _panel_z_distribution(ax=ax, **valid_zdist_2d)
 
             ax.hist.assert_called_once()
             _, kwargs = ax.hist.call_args
             assert kwargs["density"] is True
             ax.plot.assert_called_once()
 
-        def test_kde_failure_drops_curve_keeps_histogram(self, ax):
-            spots = SimpleNamespace(
-                has_spots=True,
-                is_3d=False,
-                coordinates=np.array(
-                    [[0.0, 0.0], [1.0, 0.0]]
-                ),  # NND [1,1] → gaussian_kde raises on singular covariance
-                dx=1.0,
-            )
+        def test_kde_failure_drops_curve_keeps_histogram(self, ax, valid_zdist_2d):
+            valid_zdist_2d["spots"].coordinates = np.array(
+                [[0.0, 0.0], [1.0, 0.0]]
+            )  # NND [1,1] → gaussian_kde raises on singular covariance
 
-            _panel_z_distribution(
-                ax=ax,
-                images=...,  # type: ignore[arg-type]
-                spots=spots,  # type: ignore[arg-type]
-                spot_labels=...,  # type: ignore[arg-type]
-            )
+            _panel_z_distribution(ax=ax, **valid_zdist_2d)
 
             ax.hist.assert_called_once()
             ax.plot.assert_not_called()
 
-        def test_render_failure_falls_back_to_placeholder(self, ax):
+        def test_render_failure_falls_back_to_placeholder(self, ax, valid_zdist_2d):
             ax.hist.side_effect = RuntimeError("boom")
-            spots = SimpleNamespace(
-                has_spots=True,
-                is_3d=False,
-                coordinates=np.array([[0.0, 0.0], [1.0, 0.0], [5.0, 0.0], [20.0, 0.0]]),
-                dx=1.0,
-            )
 
-            _panel_z_distribution(
-                ax=ax,
-                images=...,  # type: ignore[arg-type]
-                spots=spots,  # type: ignore[arg-type]
-                spot_labels=...,  # type: ignore[arg-type]
-            )
+            _panel_z_distribution(ax=ax, **valid_zdist_2d)
 
             ax.text.assert_called_once()
             assert ax.text.call_args[0][2] == "Failed to render"
             ax.set_title.assert_called_once()
 
-        def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+        def test_fatal_pipeline_error_propagates_uncaught(self, ax, valid_zdist_2d):
             ax.hist.side_effect = FatalPipelineError("unrecoverable")
-            spots = SimpleNamespace(
-                has_spots=True,
-                is_3d=False,
-                coordinates=np.array([[0.0, 0.0], [1.0, 0.0], [5.0, 0.0], [20.0, 0.0]]),
-                dx=1.0,
-            )
 
             with pytest.raises(FatalPipelineError):
-                _panel_z_distribution(
-                    ax=ax,
-                    images=...,  # type: ignore[arg-type]
-                    spots=spots,  # type: ignore[arg-type]
-                    spot_labels=...,  # type: ignore[arg-type]
-                )
+                _panel_z_distribution(ax=ax, **valid_zdist_2d)
 
             # early exit: the title/axis code after the try/except never runs
             ax.set_title.assert_not_called()
 
 
 class TestPanelECFD:
-    def test_no_spots_draws_placeholder(self, ax):
-        spots = SimpleNamespace(has_spots=False)
-
-        _panel_ecdf(
-            ax=ax,
-            spots=spots,  # type: ignore[arg-type]
-            spot_labels=...,  # type: ignore[arg-type]
-            flow_details=...,  # type: ignore[arg-type]
-            config=...,  # type: ignore[arg-type]
+    @pytest.fixture
+    def valid_ecdf(self):
+        return dict(
+            spots=SimpleNamespace(has_spots=True),
+            spot_labels=np.array([0, 1, 0, 2]),
+            flow_details=SimpleNamespace(prob=[0.2, 0.8, 0.4, 0.9]),
+            config=SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4)),
         )
+
+    def test_no_spots_draws_placeholder(self, ax, valid_ecdf):
+        valid_ecdf["spots"].has_spots = False
+
+        _panel_ecdf(ax=ax, **valid_ecdf)
 
         ax.text.assert_called_once()
         assert ax.text.call_args[0][2] == "No Spots Detected"
         ax.axis.assert_called_once_with("off")
         ax.axvline.assert_not_called()
 
-    def test_splits_inside_vs_background(self, ax):
-        spots = SimpleNamespace(has_spots=True)
-        spot_labels = np.array([0, 1, 0, 2])
-        flow_details = SimpleNamespace(prob=[0.2, 0.8, 0.4, 0.9])
-        config = SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4))
-
-        _panel_ecdf(
-            ax=ax,
-            spots=spots,  # type: ignore[arg-type]
-            spot_labels=spot_labels,
-            flow_details=flow_details,
-            config=config,  # type: ignore[arg-type]
-        )
+    def test_splits_inside_vs_background(self, ax, valid_ecdf):
+        _panel_ecdf(ax=ax, **valid_ecdf)
 
         assert ax.step.call_count == 2
         args_inside, kwargs_inside = ax.step.call_args_list[0]
@@ -760,122 +689,70 @@ class TestPanelECFD:
         assert ax.axvline.call_args[0][0] == 0.4
         ax.text.assert_not_called()
 
-    def test_empty_group_is_skipped(self, ax):
-        spots = SimpleNamespace(has_spots=True)
-        spot_labels = np.array([1, 2, 3])
-        flow_details = SimpleNamespace(prob=[0.2, 0.8, 0.4])
-        config = SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4))
+    def test_empty_group_is_skipped(self, ax, valid_ecdf):
+        valid_ecdf["spot_labels"] = np.array([1, 2, 3])
+        valid_ecdf["flow_details"] = SimpleNamespace(prob=[0.2, 0.8, 0.4])
 
-        _panel_ecdf(
-            ax=ax,
-            spots=spots,  # type: ignore[arg-type]
-            spot_labels=spot_labels,
-            flow_details=flow_details,
-            config=config,  # type: ignore[arg-type]
-        )
+        _panel_ecdf(ax=ax, **valid_ecdf)
 
         assert ax.step.call_count == 1
         _, kwargs = ax.step.call_args
         assert kwargs["label"] == "Inside object (n=3)"
         ax.axvline.assert_called_once()
 
-    def test_render_failure_falls_back_to_placeholder(self, ax):
+    def test_render_failure_falls_back_to_placeholder(self, ax, valid_ecdf):
         ax.axvline.side_effect = RuntimeError("boom")
-        spots = SimpleNamespace(has_spots=True)
-        spot_labels = np.array([0, 1, 0, 2])
-        flow_details = SimpleNamespace(prob=[0.2, 0.8, 0.4, 0.9])
-        config = SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4))
 
-        _panel_ecdf(
-            ax=ax,
-            spots=spots,  # type: ignore[arg-type]
-            spot_labels=spot_labels,
-            flow_details=flow_details,
-            config=config,  # type: ignore[arg-type]
-        )
+        _panel_ecdf(ax=ax, **valid_ecdf)
 
         ax.text.assert_called_once()
         assert ax.text.call_args[0][2] == "Failed to render"
         ax.set_title.assert_called_once()
 
-    def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+    def test_fatal_pipeline_error_propagates_uncaught(self, ax, valid_ecdf):
         ax.axvline.side_effect = FatalPipelineError("unrecoverable")
-        spots = SimpleNamespace(has_spots=True)
-        spot_labels = np.array([0, 1, 0, 2])
-        flow_details = SimpleNamespace(prob=[0.2, 0.8, 0.4, 0.9])
-        config = SimpleNamespace(detection=SimpleNamespace(prob_thresh=0.4))
 
         with pytest.raises(FatalPipelineError):
-            _panel_ecdf(
-                ax=ax,
-                spots=spots,  # type: ignore[arg-type]
-                spot_labels=spot_labels,
-                flow_details=flow_details,
-                config=config,  # type: ignore[arg-type]
-            )
+            _panel_ecdf(ax=ax, **valid_ecdf)
 
-            # early exit: the title/axis code after the try/except never runs
-            ax.set_title.assert_not_called()
+        # early exit: the title/axis code after the try/except never runs
+        ax.set_title.assert_not_called()
 
 
 class TestPanelSpotmap:
-    def test_draw_object_contours(self, ax):
-        images = SimpleNamespace(
-            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
-        )
-        spots = SimpleNamespace(
-            has_spots=False,
-            dx=0.2,
+    @pytest.fixture
+    def valid_spotmap(self):
+        return dict(
+            images=SimpleNamespace(
+                segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
+            ),
+            spots=SimpleNamespace(
+                has_spots=True,
+                is_3d=True,
+                x=np.array([1, 2]),
+                y=np.array([3, 4]),
+                z_um=np.array([0.5, 1.0]),
+                dx=0.2,
+            ),
         )
 
-        _panel_spotmap(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-        )
+    def test_draw_object_contours(self, ax, valid_spotmap):
+        valid_spotmap["spots"].has_spots = False
+
+        _panel_spotmap(ax=ax, **valid_spotmap)
 
         ax.contour.assert_called_once()
         ax.scatter.assert_not_called()
 
-    def test_skip_contour_when_masks_all_background(self, ax):
-        images = SimpleNamespace(
-            segmentation_image=np.zeros((4, 4)), masks_2d=np.zeros((2, 2))
-        )
-        spots = SimpleNamespace(
-            has_spots=True,
-            is_3d=True,
-            x=np.array([1, 2]),
-            y=np.array([3, 4]),
-            z_um=np.array([0.5, 1.0]),
-            dx=0.2,
-        )
+    def test_skip_contour_when_masks_all_background(self, ax, valid_spotmap):
+        valid_spotmap["images"].masks_2d = np.zeros((2, 2))
 
-        _panel_spotmap(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-        )
+        _panel_spotmap(ax=ax, **valid_spotmap)
 
         ax.contour.assert_not_called()
 
-    def test_3d_scatter_coloured_by_z_with_colourbar(self, ax):
-        images = SimpleNamespace(
-            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
-        )
-        spots = SimpleNamespace(
-            has_spots=True,
-            is_3d=True,
-            x=np.array([1, 2]),
-            y=np.array([3, 4]),
-            z_um=np.array([0.5, 1.0]),
-            dx=0.2,
-        )
-
-        _panel_spotmap(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-        )
+    def test_3d_scatter_coloured_by_z_with_colourbar(self, ax, valid_spotmap):
+        _panel_spotmap(ax=ax, **valid_spotmap)
 
         ax.scatter.assert_called_once()
         assert ax.scatter.call_args.kwargs["cmap"] == "turbo"
@@ -887,94 +764,40 @@ class TestPanelSpotmap:
         fig = ax.get_figure.return_value
         fig.colorbar.assert_called_once()
 
-    def test_2d_scatter_uniform_colour(self, ax):
-        images = SimpleNamespace(
-            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
-        )
-        spots = SimpleNamespace(
-            has_spots=True,
-            is_3d=False,
-            x=np.array([1, 2]),
-            y=np.array([3, 4]),
-            z_um=np.array([0.5, 1.0]),
-            dx=0.2,
-        )
+    def test_2d_scatter_uniform_colour(self, ax, valid_spotmap):
+        valid_spotmap["spots"].is_3d = False
 
-        _panel_spotmap(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-        )
+        _panel_spotmap(ax=ax, **valid_spotmap)
 
         ax.scatter.assert_called_once()
         assert ax.scatter.call_args.kwargs["color"] == "#4FC3F7"
 
-    def test_no_spots_still_draws_contours_no_scatter(self, ax):
-        images = SimpleNamespace(
-            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
-        )
-        spots = SimpleNamespace(
-            has_spots=False,
-            is_3d=False,
-            x=None,
-            y=None,
-            z_um=None,
-            dx=0.2,
-        )
+    def test_no_spots_still_draws_contours_no_scatter(self, ax, valid_spotmap):
+        valid_spotmap["spots"].has_spots = False
+        valid_spotmap["spots"].is_3d = False
+        valid_spotmap["spots"].x = None
+        valid_spotmap["spots"].y = None
+        valid_spotmap["spots"].z_um = None
 
-        _panel_spotmap(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-        )
+        _panel_spotmap(ax=ax, **valid_spotmap)
 
         ax.contour.assert_called_once()
         ax.scatter.assert_not_called()
 
-    def test_render_failure_falls_back_to_placeholder(self, ax):
+    def test_render_failure_falls_back_to_placeholder(self, ax, valid_spotmap):
         ax.scatter.side_effect = RuntimeError("boom")
-        images = SimpleNamespace(
-            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
-        )
-        spots = SimpleNamespace(
-            has_spots=True,
-            is_3d=True,
-            x=np.array([1, 2]),
-            y=np.array([3, 4]),
-            z_um=np.array([0.5, 1.0]),
-            dx=0.2,
-        )
 
-        _panel_spotmap(
-            ax=ax,
-            images=images,  # type: ignore[arg-type]
-            spots=spots,  # type: ignore[arg-type]
-        )
+        _panel_spotmap(ax=ax, **valid_spotmap)
 
         ax.text.assert_called_once()
         assert ax.text.call_args[0][2] == "Failed to render"
         ax.set_aspect.assert_called_once()
 
-    def test_fatal_pipeline_error_propagates_uncaught(self, ax):
+    def test_fatal_pipeline_error_propagates_uncaught(self, ax, valid_spotmap):
         ax.scatter.side_effect = FatalPipelineError("unrecoverable")
-        images = SimpleNamespace(
-            segmentation_image=np.zeros((4, 4)), masks_2d=np.array([[0, 1], [2, 0]])
-        )
-        spots = SimpleNamespace(
-            has_spots=True,
-            is_3d=True,
-            x=np.array([1, 2]),
-            y=np.array([3, 4]),
-            z_um=np.array([0.5, 1.0]),
-            dx=0.2,
-        )
 
         with pytest.raises(FatalPipelineError):
-            _panel_spotmap(
-                ax=ax,
-                images=images,  # type: ignore[arg-type]
-                spots=spots,  # type: ignore[arg-type]
-            )
+            _panel_spotmap(ax=ax, **valid_spotmap)
 
         # early exit: the title/axis code after the try/except never runs
         ax.set_aspect.assert_not_called()

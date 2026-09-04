@@ -153,7 +153,13 @@ The qc-plotting split (`todo.txt` item 7) is mirrored in the tests: `test_qc_pan
 covers the three figure builders and is still being built out (the classes `TestMakeQCFigure` /
 `TestMakeSceneSummaryFigure` / `TestMakeRunSummaryFigure` are still empty `pass` stubs; see `todo.txt`
 item 4). `test_qc_panels.py` is also the first test file to use nested test classes (`TestPanelZDistribution`'s
-`TestIs3dTrue` / `TestIs3dFalse`), for a panel with two independent `is_3d` branches. Tests
+`TestIs3dTrue` / `TestIs3dFalse`), for a panel with two independent `is_3d` branches. Its per-class fixtures
+(`valid_segmentation`, `valid_spot_detection`, `valid_ecdf`, `valid_spotmap`, `valid_zdist_2d`, plus the
+original `valid_3d`; `todo.txt` item 8, done 2026-09-04) follow one convention: each returns a dict of valid
+default args, and individual tests mutate one or two keys in place before calling
+`_panel_x(ax=ax, **valid_y)` — a panel argument a given code path never reads is set to `...` (Ellipsis, not
+`None` — `None` is a real value elsewhere in this module, e.g. `masks_2d`/`z_um`, so it would misleadingly
+suggest the code branches on it). Tests
 mock heavy ML dependencies (Cellpose/Spotiflow model calls) via `pytest-mock` rather than loading real models
 or real microscopy files — keep new tests fast and offline.
 

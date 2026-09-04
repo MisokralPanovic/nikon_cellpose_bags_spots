@@ -871,7 +871,8 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
    now `from spot_detector.qc_panels import (...)` at the top. run_pipeline.py's import line is UNCHANGED
    (`from spot_detector.qc_figures import make_qc_figure, ...`) - pure internal refactor, zero caller change,
    grep-confirmed no other src/ module references any moved name. Tests mirror 1:1: tests/test_qc_panels.py
-   (980 lines, all 9 panel/dataclass classes) + tests/test_qc_figures.py (now just the 3 builder stub
+   (980 lines at the point of the split, all 9 panel/dataclass classes - see item 8 for the subsequent
+   readability pass that brought this down to 803) + tests/test_qc_figures.py (now just the 3 builder stub
    classes; its now-unused import block was stripped - all imports were dead once only the `pass` stubs
    remained). Full suite green (177), ruff check + format clean. CLAUDE.md updated: "Key modules" bullet
    now describes both files + the public/private cut rationale, Testing conventions paragraph names
@@ -896,21 +897,43 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
    paragraph's file list too.
 ---
 
-8. test_qc_figures.py readability pass   <- WANTED by user 2026-09-03, DEFERRED until all classes written
-   Once TestPanelSpotmap + the 3 figure-builder classes are done and the suite is green, do a dedicated
-   pass to simplify test readability by pulling repeated setup into fixtures - the way
-   TestPanelZDistribution.TestIs3dTrue's `valid_3d` fixture already does it. Test-only, no src changes.
-   Known candidates:
-   - TestPanelECFD: 4 of 5 tests repeat the same 4-line spots/spot_labels/flow_details/config block ->
-     a `valid_ecdf` fixture (dict) + per-test overrides.
-   - TestPanelZDistribution.TestIs3dFalse: every test rebuilds
-     spots = SimpleNamespace(has_spots=True, is_3d=False, coordinates=..., dx=...) -> fixture + coordinates
-     override.
-   - the `images=... / spot_labels=...` Ellipsis noise in the 2D-branch / ECFD-no-spots calls could go
-     behind a tiny per-class `_call(ax, **overrides)` helper so the panel invocation isn't repeated
-     verbatim 5x.
-   - TestPanelFlow / TestPanelSpotDetection: repeated SimpleNamespace(...) images/spots construction.
-   Do it as ONE commit after coverage is complete, not interleaved - same reasoning as item 7 (the green
-   suite is the safety net for a mechanical refactor). Pairs naturally with item 7; could be the same
-   sitting.
+8. test_qc_panels.py readability pass   <- DONE 2026-09-04 (learning-mode: user wrote every fixture, Claude
+   audited candidates first, then reviewed each edit and re-audited at the end). Done in the same sitting
+   as item 7, before the 3 figure-builder classes, per the ordering agreed 2026-09-03.
+   Net effect: tests/test_qc_panels.py 980 -> 803 lines (-177, matches the original "~180 lines" estimate).
+   Full suite green (177), ruff check + ruff format clean throughout.
+   5 of the 6 candidates scoped below got a `@pytest.fixture` returning a dict of valid default args, with
+   individual tests overriding one or two keys in-place before calling (same shape TestIs3dTrue's pre-
+   existing `valid_3d` fixture already used):
+     - TestPanelSegemntation -> `valid_segmentation` (not originally scoped below, caught during the pass -
+       same repeated-SimpleNamespace pattern as the others).
+     - TestPanelSpotDetection -> `valid_spot_detection`.
+     - TestPanelECFD -> `valid_ecdf`.
+     - TestPanelSpotmap -> `valid_spotmap`.
+     - TestPanelZDistribution.TestIs3dFalse -> `valid_zdist_2d`.
+   The separately-scoped `images=... / spot_labels=...` Ellipsis-noise helper was DROPPED as its own idea -
+   folding those two keys directly into `valid_zdist_2d` (as `...`) solved the same noise without a second
+   `_call()` abstraction layer. Design decision made explicit during this pass: the "unused" sentinel for a
+   panel argument a given branch never reads should stay `...` (Ellipsis), not `None` - `None` is a real,
+   meaningful value elsewhere in this same module (`images.masks_2d`, `spots.z_um`, `spots.x`/`y` when
+   `has_spots=False`), so using it here for "truly not read" would read as an intentional null and invite a
+   future reader to go check for an `is None` branch that doesn't exist. `TestPanelFlow` was looked at and
+   deliberately left alone - each of its 8 tests' `flow_details` genuinely differs in shape/content (that
+   variation IS the test), so a shared fixture would mostly just get overridden away with near-zero payoff.
+   Two real bugs caught during this pass, both the same shape - an `ax.<method>.assert_not_called()` sitting
+   *inside* a `with pytest.raises(FatalPipelineError):` block instead of after it, making it dead code (the
+   raised exception exits the block before that line executes, so the test still passes but proves nothing
+   about "does the trailing code get skipped"):
+     - TestPanelECFD.test_fatal_pipeline_error_propagates_uncaught - PRE-EXISTING (predates this pass, and
+       predates the qc_figures.py/qc_panels.py split too - todo.txt's own 2026-09-03 entry for this test
+       claims it was "fixed 2026-09-03: ... dedented to sit after the block", but the fix evidently didn't
+       survive whatever came next; this pass is what actually fixed it, now dedented for real, verified by
+       re-grepping every `with pytest.raises(FatalPipelineError)` block in the file for consistent indent).
+     - TestPanelSpotmap.test_fatal_pipeline_error_propagates_uncaught - a NEW regression introduced by this
+       same pass's own fixture rewrite (diff-confirmed: correctly dedented pre-refactor, re-indented back
+       inside the `with` block when the test was rewritten to use `valid_spotmap`). Caught and fixed in the
+       same sitting via a targeted re-check (grepped every `with pytest.raises(FatalPipelineError)` site and
+       its trailing lines) before the pass was called done - a good example of why "did the fixture change
+       preserve behavior" needs an explicit re-check pass, not just "tests still pass" (a dead assertion
+       doesn't fail the suite either way).
 ---
