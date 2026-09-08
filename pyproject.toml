@@ -38,6 +38,11 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    # seaborn 0.13.2 passes the deprecated `vert=` kwarg to matplotlib 3.11's Axes.bxp
+    # (seaborn/categorical.py). Fixed upstream, unreleased. Drop when seaborn > 0.13.2 ships.
+    "ignore:.*vert.* was deprecated in Matplotlib.*:matplotlib._api.deprecation.MatplotlibDeprecationWarning",
+]
 
 [tool.ruff]
 target-version = "py312"

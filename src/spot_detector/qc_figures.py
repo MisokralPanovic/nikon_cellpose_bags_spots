@@ -106,7 +106,7 @@ def make_qc_figure(
     _panel_spotmap(ax=axes_flat[5], images=images, spots=spots)
 
     plt.tight_layout()
-    plt.savefig(out_path, dpi=600, bbox_inches="tight")
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     logger.debug(f"[QC] Saved summary: {out_path.name}")
 
@@ -210,7 +210,7 @@ def make_scene_summary_figure(
     ax_d.set_ylabel("Spot Count")
 
     plt.tight_layout()
-    plt.savefig(out_path, dpi=600, bbox_inches="tight")
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     logger.info(f"[QC] Saved scene summary: {out_path.name}")
 
@@ -339,6 +339,6 @@ def make_run_summary_figure(
     ax_d.set_ylabel("Spot Count")
 
     plt.tight_layout()
-    plt.savefig(out_path, dpi=600, bbox_inches="tight")
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     logger.info(f"[QC] Saved run summary: {out_path.name}")

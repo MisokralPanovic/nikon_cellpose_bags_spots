@@ -642,6 +642,84 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
   ~8 core tests + ~2 optional, mostly smoke. Guards the two real risks: the mode branch and the
   DataFrame/argument column contract.
 
+  DONE 2026-09-08: TestMakeQCFigure written (learning-mode - Claude advised on fixture design +
+  caught a string of mock bugs, user wrote every test). 4 tests, all pass, 186 suite-wide.
+    - qc_common fixture: the make_qc_figure kwargs identical across 2D and 3D (condition, scene,
+      out_path, spot_labels, dx, dz, config). Each smoke test does `qc_common | dict(mode=..., <the 5
+      mode-shaped arrays>)`. config = make_config(detection={"prob_thresh": 0.4,
+      "use_default_model": True}) - the use_default_model is REQUIRED because make_config's merge is
+      shallow (passing detection={...} drops spotiflow_model_path -> validator fails); make_qc_figure
+      only ever reads config.detection.prob_thresh anyway. (CLAUDE.md updated with the shallow-merge
+      gotcha.)
+    - test_smoke_2d / test_smoke_3d: real arrays sized so ALL 6 panels hit their happy path (16x16 /
+      5x16x16 images, 2 labelled objects, 6 spots assigned [1,1,2,2,0,0], real flow arrays in
+      Spotiflow's channels-last layout (16,16,3) / (5,16,16,4), prob array len 6). Asserts
+      out_path.exists() AND `"failed" not in caplog.text.lower()` - every panel's `except Exception`
+      fallback logs a logger.warning containing "failed", and pytest's caplog catches WARNING+ by
+      default, so this is a real "did every panel actually render" guard, not just "did the file get
+      written". Verified empirically: a deliberately-broken flow shape trips it.
+    - test_dispatches_to_all_six_panels: mocker.patch.multiple("spot_detector.qc_figures",
+      _panel_x=mocker.DEFAULT, ...) - returns a {name: mock} dict. Patch target is qc_figures (where
+      the names are looked up), NOT qc_panels. Also mocker.patch(...plt.savefig) to skip the 600-dpi
+      render, and mocker.spy(qc_figures.plt, "subplots") (needs `from spot_detector import
+      qc_figures`). Asserts each panel called once + panels["_panel_segemntation"].call_args.
+      kwargs["ax"] is subplots_spy.spy_return[1].flatten()[0] (and [5] for spotmap) - identity check
+      that the right axes_flat[i] reaches each panel. Trivial all-zero 8x8 data is fine here since
+      only ImageData/SpotData construction runs for real.
+    - test_closes_figure: mocker.patch(...plt.savefig) + mocker.patch(...plt.close), assert
+      close_mock.assert_called_once(). NOTE the antipattern caught in review: `assert
+      mock.assert_called()` always fails - assert_* methods return None (raise on failure), so
+      `assert None`. Call the method bare; use `assert mock.called` only for the .called/.call_count
+      properties.
+  Mock-technique notes for the remaining 2 classes (and future files):
+    - assert_called_once() etc. are STATEMENTS (call bare, they raise with a diff). .called /
+      .call_count are PROPERTIES (put those behind `assert`). `assert mock.assert_called_once()` is
+      wrong-on-the-passing-path and ruff (E,F,W,I,UP,B,RUF) does not flag it.
+    - mocker.spy(obj, "name") = patch(..., wraps=original) + spy_return / spy_return_list /
+      spy_exception. Use it when the real call must still happen (plt.subplots must build a real
+      figure) but you want to assert on args / return. Use plain patch to STOP real work.
+    - "patch where it's looked up" applies to names bound into a namespace by `from x import y`
+      (patch qc_figures._panel_flow, not qc_panels._panel_flow). It does NOT apply to attribute
+      access on a shared singleton module - qc_figures.plt and a test's own `import matplotlib.
+      pyplot as plt` are the same object, so spy/patch on either reaches plt.subplots.
+  DONE 2026-09-08: TestMakeSceneSummaryFigure (2) + TestMakeRunSummaryFigure (3) written
+  (learning-mode - Claude advised on df shape / assertion choice, user wrote every test). ITEM 4 IS
+  NOW FULLY CLOSED - test_qc_figures.py is 9 tests, test suite is 186, ruff + ruff-format clean, 0
+  warnings.
+    - Both smoke pairs: a small real DataFrame with the mode's columns (Scene/Condition, Spot_Count,
+      Area_um2|Volume_um3, Spot_Density_per_um2|_per_um3), call the builder, assert out_path.exists().
+      The summary builders have NO per-panel try/except (resilience is at the run_pipeline.py call
+      site, item 1) - so a bad column raises and fails the test loudly, no caplog guard needed.
+    - Mode branch guarded BY OMISSION: the 3D df deliberately lacks the 2D columns, so a regressed
+      size_metric/norm_metric selection raises a seaborn ValueError ("Could not interpret value ...")
+      instead of silently plotting the wrong column. Verified empirically - flipping the ternary in
+      qc_figures.py fails test_smoke_3d (both classes) + test_3d_selects_volume_columns.
+    - run-summary needs >=2 rows per Condition: Panel C is groupby("Condition")["Spot_Count"].agg(
+      lambda x: x.std()/x.mean()); 1 row/group -> std is NaN -> the panel silently plots nothing and
+      the CV-calc regression would go uncaught. 3 conditions x 2 rows.
+    - scene-summary smoke tests also assert `df["Scene"].tolist() == [1,1,2]` - guards the
+      `df = df.copy()` in make_scene_summary_figure (it does df["Scene"] = df["Scene"].astype(str);
+      without the copy the caller's df is mutated int->str). run-summary has no such copy/mutation so
+      no equivalent assertion there (a speculative "Spot_Count unchanged" assert was tried and
+      dropped as guarding nothing that currently exists).
+    - test_3d_selects_volume_columns (the one non-smoke, kept on run-summary only per the resolved
+      placement question): a PRODUCTION-SHAPED df (all 4 metric columns present - the off-mode pair
+      would be all-NaN in a real 3D run but any values work since scatterplot is mocked) +
+      mocker.patch("spot_detector.qc_figures.sns.scatterplot"), then filter call_args_list to the
+      Panel D call (kwargs["y"] == "Spot_Count"; Panel C also calls scatterplot with y="Condition")
+      and assert kwargs["x"] == "Volume_um3". This is the case a plain smoke test CANNOT catch: in
+      production the wrong column exists (all-NaN) rather than being absent, so a regressed
+      size_metric would render a blank Panel D with no error. ~10 lines for a narrow-but-real risk.
+    - filterwarnings added to pyproject.toml [tool.pytest.ini_options] for the seaborn-0.13.2 `vert:`
+      MatplotlibDeprecationWarning (seaborn passes the mpl-3.11-deprecated kwarg to Axes.bxp; not our
+      code, unreleased fix upstream). Scoped to that message+category. Drop when seaborn > 0.13.2.
+      CLAUDE.md updated.
+  NOTE (user's uncommitted source change, confirm before committing): all 3 builders' savefig calls
+  in qc_figures.py dropped dpi=600 -> dpi=300 (make_qc_figure, make_scene_summary_figure,
+  make_run_summary_figure). Speeds the smoke tests ~4x, but it's a real output-quality change to
+  every QC PNG the pipeline writes - intended as permanent, not just a test tweak? If yes it's fine;
+  call it out in the commit message.
+
   DONE 2026-09-03: TestPanelFlow written (learning-mode - Claude advised, user wrote every test). 8
   tests, all pass, back to the mocked-`ax` panel style but also mocking _flow_to_rgb itself for the
   paths that reach it:

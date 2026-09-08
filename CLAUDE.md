@@ -147,13 +147,25 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 177 tests as of 2026-09-04.
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 186 tests collected as of 2026-09-08.
 The qc-plotting split (`todo.txt` item 7) is mirrored in the tests: `test_qc_panels.py` covers `qc_panels.py`
 (all 6 `_panel_*` helpers plus `SpotData`/`ImageData`/`_flow_to_rgb` — 62 tests, done), `test_qc_figures.py`
-covers the three figure builders and is still being built out (as of 2026-09-04, `TestMakeQCFigure` /
-`TestMakeSceneSummaryFigure` / `TestMakeRunSummaryFigure` have their 9 planned test methods scaffolded by
-name but every body is still an empty `pass` — no real assertions yet; see `todo.txt` item 4's handover
-note for the agreed per-class test plan and two small open placement questions).
+covers the three figure builders and is **DONE as of 2026-09-08** (9 tests, `todo.txt` item 4 closed).
+`TestMakeQCFigure` (4): `test_smoke_2d`/`test_smoke_3d` render a real figure to a `tmp_path` PNG with all
+6 panels running their happy path — asserted via `out_path.exists()` plus `"failed" not in caplog.text.lower()`,
+since every panel's `except Exception` fallback logs a `logger.warning` containing "failed";
+`test_dispatches_to_all_six_panels` `mocker.patch.multiple`s the 6 panels + spies `plt.subplots` to check
+each gets the right `axes_flat[i]`; `test_closes_figure` asserts `plt.close` called once.
+`TestMakeSceneSummaryFigure` (2) + `TestMakeRunSummaryFigure` (3): mostly smoke — a small real DataFrame
+with the mode's expected columns (`Scene`/`Condition`, `Spot_Count`, `Area_um2`|`Volume_um3`,
+`Spot_Density_per_um2`|`_per_um3`), assert the file is written. The `mode` branch is guarded *by omission* —
+the 3D df deliberately lacks the 2D columns, so a broken `size_metric`/`norm_metric` selection raises a
+seaborn `ValueError` instead of silently plotting the wrong column. `test_3d_selects_volume_columns` is the
+one non-smoke: a production-shaped df (all 4 metric columns present) + `mocker.patch(...sns.scatterplot)`,
+asserting Panel D is called with `x="Volume_um3"` — the case a plain smoke test can't catch because in
+production the wrong column exists (all-NaN) rather than being absent. The summary builders have **no
+per-panel try/except** (resilience is at the `run_pipeline.py` call site, `todo.txt` item 1), so a bad
+column raises and fails the test loudly — no `caplog` guard needed there.
 `test_qc_panels.py` is also the first test file to use nested test classes (`TestPanelZDistribution`'s
 `TestIs3dTrue` / `TestIs3dFalse`), for a panel with two independent `is_3d` branches. Its per-class fixtures
 (`valid_segmentation`, `valid_spot_detection`, `valid_ecdf`, `valid_spotmap`, `valid_zdist_2d`, plus the
@@ -165,11 +177,21 @@ suggest the code branches on it). Tests
 mock heavy ML dependencies (Cellpose/Spotiflow model calls) via `pytest-mock` rather than loading real models
 or real microscopy files — keep new tests fast and offline.
 
+`[tool.pytest.ini_options]` in `pyproject.toml` has a `filterwarnings` entry suppressing one
+`MatplotlibDeprecationWarning` (`vert:` → `orientation:`, mpl 3.11): seaborn 0.13.2's `boxplot` passes the
+deprecated kwarg to `Axes.bxp` — not our code, fixed upstream but unreleased, surfaces once
+`test_qc_figures.py` started exercising real seaborn (all `_panel_*` tests mock `ax`). Scoped to that exact
+message+category so a `vert`-unrelated mpl deprecation still shows. Drop when seaborn > 0.13.2 ships.
+
 `conftest.py` holds two shared factory fixtures, deliberately kept minimal: `make_config(**overrides)` builds
 a real, validated `PipelineConfig` backed by real tmp_path files/dirs (so pydantic's `FilePath`/`DirectoryPath`
 validators actually run), merging `**overrides` into a valid base dict — since `PipelineConfig` is frozen,
 tests needing a different value (e.g. `mode.do_3d`) must call `make_config(mode={"do_3d": True})` to get a
-new instance rather than mutate a shared one. `make_stack(shape)` returns a random `float32` array of the
+new instance rather than mutate a shared one. The merge is **shallow** (`{**base, **overrides}`): passing a
+nested section (e.g. `detection={"prob_thresh": 0.4}`) *replaces the entire section*, dropping its other
+keys — so `make_config(detection={"prob_thresh": 0.4})` fails validation (no `spotiflow_model_path`) unless
+you also pass `"use_default_model": True` or the full section. `make_config(mode={"do_3d": True})` only
+works because `mode` has a single key. `make_stack(shape)` returns a random `float32` array of the
 given shape. Both were hoisted here specifically because their *implementation* (not just fixture name) was
 identical across files. Several other same-named fixtures across test files (`base_params` in
 `test_detection.py` vs `test_object_measurement.py`) look like duplicates but aren't — different call

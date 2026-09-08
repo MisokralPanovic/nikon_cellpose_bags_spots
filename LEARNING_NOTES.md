@@ -5,6 +5,118 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-09-08 (cont'd) — the two summary-figure classes, and "guard the branch by omission"
+
+Finished `TestMakeSceneSummaryFigure` (2) + `TestMakeRunSummaryFigure` (3). **item 4 fully closed** —
+`test_qc_figures.py` is 9 tests, suite 186, all clean.
+
+**Testing a plotter is testing a schema, not arithmetic.** `make_run_summary_figure` reads
+`Spot_Density_per_um2` and draws it; it never checks that column equals `Spot_Count / Area_um2`. That
+relationship is computed in `obejct_measurement.py` and tested there. So the smoke-test DataFrame's *values*
+are free — only its *column names and shape* matter. The single biggest real risk in these builders is a
+hard-coded column string going stale after an upstream rename, and a realistic-df smoke test is exactly what
+catches it.
+
+**Guard the mode branch by omission.** Both builders do `metric = "Volume_um3" if is_3d else "Area_um2"`.
+Rather than a dedicated "picks the right column" test for every metric, the `test_smoke_3d` DataFrame simply
+*omits* the 2D columns. Now a regressed ternary asks seaborn for a column that isn't there → `ValueError` →
+test fails. One fixture shape covers "doesn't crash" *and* "picked a 3D column" for free. Verified by
+flipping the ternary in the source: `test_smoke_3d` (both classes) went red.
+
+**Where omission isn't enough — the production-shape case.** The real pipeline df carries *all four* metric
+columns (`obejct_measurement.py:76-90`), the off-mode pair all-`NaN` but present. So a regressed
+`size_metric` wouldn't crash a real 3D run — it'd silently plot the all-NaN column and give a blank panel.
+`test_3d_selects_volume_columns` is the one test that catches that: a df with `Volume_um3` *and* `Area_um2`,
+`mocker.patch("spot_detector.qc_figures.sns.scatterplot")`, then
+`[c for c in scatterplot.call_args_list if c.kwargs.get("y") == "Spot_Count"]` to pick Panel D out of the
+two scatterplot calls (Panel C also calls it, with `y="Condition"`), and assert `kwargs["x"] == "Volume_um3"`.
+Lesson: a smoke test that omits the wrong column proves *"didn't pick a missing column"*; only a
+production-shaped fixture + call interception proves *"picked the right one of several present"*.
+
+**`df.copy()` is a testable contract.** `make_scene_summary_figure` does `df = df.copy()` then
+`df["Scene"] = df["Scene"].astype(str)`. The scene tests assert `df["Scene"].tolist() == [1, 1, 2]` after
+the call — if the copy regressed, the caller's `Scene` column silently turns to strings. `make_run_summary_figure`
+has no such copy-then-mutate, so it gets no equivalent assertion (I tried one on `Spot_Count`; it guarded
+nothing that exists today, so we dropped it — resist adding assertions "just in case").
+
+**Panel C needs ≥2 rows per group.** `df.groupby("Condition")["Spot_Count"].agg(lambda x: x.std() / x.mean())`
+— a single-row group has `std() == NaN` (ddof=1), the CV scatter plots nothing, and a broken CV formula
+sails through. Fixture: 3 conditions × 2 rows.
+
+**Third-party deprecation warnings belong in `pyproject.toml`, scoped.** seaborn 0.13.2's `boxplot` passes
+matplotlib 3.11's deprecated `vert=` kwarg — 22 warnings once these tests ran real seaborn. Not our bug, no
+seaborn release fixes it yet. Added one `filterwarnings = ["ignore:...vert...:matplotlib._api.deprecation.MatplotlibDeprecationWarning"]`
+entry — scoped to *that message and category* so a `vert`-unrelated mpl deprecation in our own plotting code
+still surfaces, with a "drop when seaborn > 0.13.2" comment so it's tracked debt, not a silent forever-mute.
+
+---
+
+## 2026-09-08 — `TestMakeQCFigure`: testing an orchestrator, and four ways to misuse a mock
+
+**Session goal:** cover `make_qc_figure` — the per-scene QC figure builder. Unlike the `_panel_*` tests
+(which mock `ax` and inspect `call_args`), this is an *orchestrator*: it builds `ImageData`/`SpotData`,
+makes a 2×3 subplot grid, calls all 6 panels, saves, closes. The panels are already tested directly, so
+the plan (todo.txt item 4) is: two real-render smoke tests + one dispatch test + one figure-cleanup test.
+No assertions on plot contents.
+
+**How much synthetic data does a smoke test need?** More than "won't crash", less than "production-real".
+The bar is: *valid enough that every panel runs its happy path* rather than falling into its
+`except Exception → "Failed to render"` placeholder. A too-minimal fixture (`masks=None`,
+`spot_labels=None`, 1 spot) still writes a PNG and still passes `out_path.exists()` — but half the panels
+are error boxes, so the test proves almost nothing. The panels each read ~3–6 attributes before drawing;
+getting one wrong is silently swallowed. So: 16×16 images, 2 labelled objects, 6 spots with a real
+label assignment, real flow arrays in Spotiflow's actual channels-last layout.
+
+**The trick that gives the smoke test teeth:** every panel's fallback path does
+`logger.warning("... failed ...", exc_info=True)` before drawing the placeholder. pytest's `caplog`
+fixture captures WARNING+ by default. So `assert "failed" not in caplog.text.lower()` is a real
+"did all 6 panels actually render" assertion — without touching a single artist. Verified by a negative
+control (broken flow shape → warning fires → assertion would trip).
+
+**Four mock mistakes caught in review, all mine, all instructive:**
+
+1. `assert mock.assert_called()` — always fails on the passing path. `assert_called()`/`assert_called_once()`
+   are *statements*: they raise `AssertionError` (with a useful diff) on failure and return `None` on
+   success. `assert None` → boom. Call them bare. `assert` is only for the *properties*: `mock.called`
+   (bool), `mock.call_count` (int). Ruff's `E,F,W,I,UP,B,RUF` set does **not** flag this.
+
+2. Patch target `"spot-detector.qc_figure"` — three errors in one string. `spot-detector` (hyphen) is the
+   *distribution* name from pyproject; the *import* name is `spot_detector` (underscore). And the module
+   is `qc_figures` — plural.
+
+3. `mocker.spy(qc_figures.plt, "subplots")` with only `from spot_detector.qc_figures import make_qc_figure`
+   at the top → `NameError: qc_figures`. That import binds `make_qc_figure`, not the module. Need
+   `from spot_detector import qc_figures` (or spy your own `import matplotlib.pyplot as plt` — same
+   singleton object).
+
+4. Nearly patched `spot_detector.qc_panels._panel_flow` for the dispatch test. Wrong: `make_qc_figure`
+   did `from spot_detector.qc_panels import _panel_flow` at load time, copying the name into
+   *`qc_figures`'s* namespace. Patch the *lookup site*: `spot_detector.qc_figures._panel_flow`.
+   **But** — this "patch where it's looked up" rule is about names bound by `from x import y`. It does
+   NOT apply to attribute access on a shared module: `qc_figures.plt.subplots` and `plt.subplots` from a
+   test's own import resolve to the identical function object, so spy/patch on either works.
+
+**Tools used well:**
+- `mocker.patch.multiple("spot_detector.qc_figures", _panel_x=mocker.DEFAULT, ...)` → returns a
+  `{name: MagicMock}` dict. Cleaner than 6 separate `mocker.patch` calls.
+- `mocker.spy(obj, "name")` = `patch(..., wraps=original)` + `spy_return` / `spy_return_list` /
+  `spy_exception`. Use it when the real call must still happen — `plt.subplots` has to build a real
+  figure for `savefig`/`close` and for the axes-identity assertion — but you still want to check how it
+  was called and what it returned. Plain `patch` is for *stopping* real work (the 600-dpi `savefig`).
+- `call_args.kwargs["ax"] is axes_flat[0]` — identity check that panel 0 got subplot 0. Works because
+  `make_qc_figure` calls every panel with `ax=` as a keyword.
+
+**`make_config` shallow-merge gotcha (now in CLAUDE.md):** `make_config(**overrides)` does
+`{**base, **overrides}`. Passing a nested section *replaces the whole section*. So
+`make_config(detection={"prob_thresh": 0.4})` drops `spotiflow_model_path` and fails pydantic validation
+unless you also pass `"use_default_model": True`. The CLAUDE.md example `make_config(mode={"do_3d": True})`
+only survives because `mode` has exactly one key.
+
+Result: 4 tests, all pass, 186 suite-wide. Remaining in item 4: `TestMakeRunSummaryFigure` (3) and
+`TestMakeSceneSummaryFigure` (2), both still `pass` stubs.
+
+---
+
 ## 2026-09-03 (cont'd) — `TestPanelZDistribution`: nested classes, and a test that passes for the wrong reason
 
 **Session goal:** cover `_panel_z_distribution` — one function, but two fully independent `is_3d` branches
