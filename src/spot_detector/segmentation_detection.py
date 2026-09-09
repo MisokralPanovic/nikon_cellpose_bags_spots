@@ -1,3 +1,4 @@
+import logging
 from types import SimpleNamespace
 
 import numpy as np
@@ -6,6 +7,8 @@ from skimage.measure import block_reduce
 from spotiflow.model import Spotiflow
 
 from spot_detector.exceptions import DimensionMismatchError
+
+logger = logging.getLogger(__name__)
 
 # =====================================================================
 # Segementation
@@ -32,11 +35,21 @@ def segment_2d(
     else:
         std_proj = np.squeeze(bf_stack).astype(np.float32)
 
+    orig_h, orig_w = std_proj.shape
+
     img_binned = block_reduce(std_proj, block_size=(factor, factor), func=np.mean)  # type: ignore[arg-type]
+
+    if orig_h % factor or orig_w % factor:
+        logger.debug(
+            f"Image {orig_h}x{orig_w} not divisible by bin_factor {factor}; "
+            f"block_reduce zero-padded to {img_binned.shape[-2] * factor}x"
+            f"{img_binned.shape[-1] * factor}, mask cropped back after upscale."
+        )
 
     masks, _, _ = model_cellpose.eval(img_binned)
 
     masks_resized = masks.repeat(factor, axis=-2).repeat(factor, axis=-1)
+    masks_resized = masks_resized[:orig_h, :orig_w]
     masks_cleaned = utils.remove_edge_masks(masks_resized, change_index=True)
 
     return masks_cleaned
@@ -62,17 +75,28 @@ def segment_3d(
     min_substracted = bf_stack.astype(np.float32) - np.min(bf_stack, axis=0).astype(
         np.float32
     )
+
+    orig_h, orig_w = min_substracted.shape[-2:]
+
     img_binned = block_reduce(
         min_substracted,
         block_size=(1, factor, factor),  # type: ignore[arg-type]
         func=np.mean,
     )
 
+    if orig_h % factor or orig_w % factor:
+        logger.debug(
+            f"Image {orig_h}x{orig_w} not divisible by bin_factor {factor}; "
+            f"block_reduce zero-padded to {img_binned.shape[-2] * factor}x"
+            f"{img_binned.shape[-1] * factor}, mask cropped back after upscale."
+        )
+
     masks, _, _ = model_cellpose.eval(
         img_binned, do_3D=False, z_axis=0, stitch_threshold=stitch_threshold
     )
 
     masks_resized = masks.repeat(factor, axis=-2).repeat(factor, axis=-1)
+    masks_resized = masks_resized[:, :orig_h, :orig_w]
     masks_cleaned = np.zeros_like(masks_resized)
     for z in range(masks_resized.shape[0]):
         masks_cleaned[z] = utils.remove_edge_masks(masks_resized[z], change_index=True)

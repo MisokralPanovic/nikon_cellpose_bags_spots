@@ -100,8 +100,13 @@ Key modules under `src/spot_detector/`:
 - `segmentation_detection.py` — the actual CV/ML calls. 2D segmentation runs Cellpose on a stdev-projection of the
   z-stack; 3D segmentation runs Cellpose per-plane on a min-subtracted stack and stitches with `stitch_threshold`.
   Both downscale by `segmentation.bin_factor` before inference and upscale masks back, then strip edge-touching
-  objects (`cellpose.utils.remove_edge_masks`). `assign_spots_to_mask` does nearest-voxel label lookup and raises
-  `ValueError` on a coordinate/mask dimensionality mismatch.
+  objects (`cellpose.utils.remove_edge_masks`). `block_reduce` zero-pads to the next multiple of `bin_factor`
+  when a dimension isn't evenly divisible, so `segment_2d`/`segment_3d` capture the pre-bin spatial shape
+  (`std_proj.shape` / `min_substracted.shape[-2:]`) and crop the upscaled mask back to it (`masks_resized[:h, :w]`)
+  before edge-mask removal — otherwise the mask ends up oversized and misaligned with the unbinned spot
+  coordinates downstream (`todo.txt` item 6, fixed 2026-09-09; a `logger.debug` fires when padding happens).
+  `assign_spots_to_mask` does nearest-voxel label lookup and raises `DimensionMismatchError` on a
+  coordinate/mask dimensionality mismatch.
 - `obejct_measurement.py` (filename typo, intentional/existing — don't "fix" it without also updating the import
   in `run_pipeline.py`) — turns masks + spot labels into a tidy per-object DataFrame via `skimage.regionprops_table`.
   2D and 3D modes populate disjoint sets of columns (e.g. `Volume_um3` is NaN in 2D, `Area_um2`/`Eccentricity` are
@@ -136,9 +141,11 @@ are one segmented object each), plus matching PNGs under `output/figures/`.
 Input images are read via `bioio.BioImage`, which abstracts over Nikon `.nd2` and other formats (`.czi`, `.lif`,
 OME-TIFF) — the specific `bioio-*` plugin used depends on file extension, handled transparently by `bioio`.
 
-`notebooks/` contains exploratory/validation notebooks (`analysis.ipynb`, `pipeline_validation.ipynb`,
-`spot_detection_pipeline.ipynb`) used for visualizing pipeline output and comparing detected spots against source
-images — useful for understanding expected behavior but not part of the package.
+`notebooks/` contains three interactive notebooks, not part of the package: `spot_detection_pipeline.ipynb`
+(interactive pipeline run — currently carries its own pre-package reimplementation of the pipeline, not calls
+to `spot_detector`), `pipeline_validation.ipynb` (spot validation in napari — imports from `spot_detector`,
+loads the real config), `analysis.ipynb` (data exploration over `output/tables/*.csv`). A production-readiness
+polish pass is planned — `todo.txt` item 9.
 
 `src/bash_scripts/` and `workflow/` (Snakemake) are an in-progress orchestration layer (repo setup, HPC conda/module
 loading, raw-data staging to/from Dropbox, result upload) — several scripts are stubs or contain scratch notes
@@ -147,7 +154,14 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 186 tests collected as of 2026-09-08.
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 192 tests collected as of 2026-09-09.
+`test_segmentation.py` (13): its `mock_cellpose_2d`/`mock_cellpose_3d` fixtures use `model.eval.side_effect`
+(a `fake_eval(img, **kwargs)` closure) rather than `return_value`, so the fake mask matches its input's shape
+the way real Cellpose does — required for the non-divisible `bin_factor` tests (a fixed-size fake mask only
+worked because `40 / 4 == 10` exactly). The `test_logs_when_padding_needed` / `test_no_log_when_divisible`
+pair uses `caplog.set_level(logging.DEBUG, logger="spot_detector.segmentation_detection")` — mandatory, since
+`caplog` captures at WARNING+ by default and the module logger inherits WARNING from root, so the
+`logger.debug` padding message is filtered before any handler without it.
 The qc-plotting split (`todo.txt` item 7) is mirrored in the tests: `test_qc_panels.py` covers `qc_panels.py`
 (all 6 `_panel_*` helpers plus `SpotData`/`ImageData`/`_flow_to_rgb` — 62 tests, done), `test_qc_figures.py`
 covers the three figure builders and is **DONE as of 2026-09-08** (9 tests, `todo.txt` item 4 closed).

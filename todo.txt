@@ -714,11 +714,15 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
       MatplotlibDeprecationWarning (seaborn passes the mpl-3.11-deprecated kwarg to Axes.bxp; not our
       code, unreleased fix upstream). Scoped to that message+category. Drop when seaborn > 0.13.2.
       CLAUDE.md updated.
-  NOTE (user's uncommitted source change, confirm before committing): all 3 builders' savefig calls
-  in qc_figures.py dropped dpi=600 -> dpi=300 (make_qc_figure, make_scene_summary_figure,
-  make_run_summary_figure). Speeds the smoke tests ~4x, but it's a real output-quality change to
-  every QC PNG the pipeline writes - intended as permanent, not just a test tweak? If yes it's fine;
-  call it out in the commit message.
+  SOURCE CHANGE 2026-09-08 (deliberate): all 3 builders' savefig calls in qc_figures.py dropped
+  dpi=600 -> dpi=300 (make_qc_figure, make_scene_summary_figure, make_run_summary_figure). Speeds the
+  smoke tests ~4x AND every real pipeline run. User's intuition: 300 dpi is good enough for these QC
+  panels. OPEN (user doing this FIRST, before items 9 then 3): re-run the pipeline against a real
+  config (`uv run spot-detector configs/config.yml`) to regenerate the QC figures at 300 dpi, eyeball
+  per-scene + both summaries against the 600-dpi copies the user already has on hand - confirm spot
+  markers / small text / flow-wheel detail still legible. Revert the one savefig line per builder if
+  not. AGREED WORK ORDER (2026-09-09): (1) this dpi check, (2) item 9 notebooks, (3) item 3 cluster
+  readiness.
 
   DONE 2026-09-03: TestPanelFlow written (learning-mode - Claude advised, user wrote every test). 8
   tests, all pass, back to the mocked-`ax` panel style but also mocking _flow_to_rgb itself for the
@@ -803,7 +807,8 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
       call signatures for different functions under test) and deliberately left local, not merged - same
       false-friend risk as the old base_config pair, just never had a reason to converge like base_config did.
 
-5. code organization
+5. code organization   <- DONE 2026-07-30 (pydantic PipelineConfig migration + flag-wins precedence;
+   see the DONE 2026-07-29 / DONE 2026-07-30 blocks below and CLAUDE.md config.py section).
 - config.py has no schema/validation, KeyErrors surface far from the actual mistake
   <- IN PROGRESS, starting 2026-07-28: migrating to pydantic (`uv add pydantic` not yet run). Scoped
      2026-07-27, see LEARNING_NOTES.md for the full design discussion. Plan:
@@ -938,8 +943,8 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
   Item 5 (pydantic config migration) is now fully closed - schema, call-site rewrite, and flag-wins
   precedence logic are all done and tested.
 
-6. segmentation correctness   <- BUG CONFIRMED 2026-07-28, not yet fixed (found while pydantic-validating
-   bin_factor, deliberately deferred to stay scoped to the config migration)
+6. segmentation correctness   <- DONE 2026-09-09 (see the DONE block below). Bug found 2026-07-28 while
+   pydantic-validating bin_factor, deferred to stay scoped to the config migration; fixed + tested now.
 - segment_2d/segment_3d (segmentation_detection.py): block_reduce() does NOT require bin_factor to evenly
   divide the image shape - it silently zero-pads up to the next multiple before reducing (verified:
   skimage.measure.block_reduce on a (513,513) image with factor=4 returns (129,129), not an error).
@@ -961,6 +966,42 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
     (b) fail fast - check image_shape[i] % factor == 0 at the top of segment_2d/segment_3d and raise
         ValueError naming the offending scene, instead of silently producing misaligned output
   leaning (a) since it's a real fix rather than just surfacing the limitation, but not decided.
+
+DONE 2026-09-09 (option a: crop-back + a debug log; learning-mode - Claude advised, user applied,
+Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data behavior verified.
+  - Chose (a) over (b) fail-fast: the crop is a real fix, padded pixels are never data, remove_edge_masks
+    strips edge objects anyway. (b) would hard-fail legitimate runs (e.g. a 2047x2047 sensor + factor=4).
+    Bonus correctness win from (a): it also fixes edge-mask removal at the bottom/right border - pre-fix
+    the zero-pad margin sat between a true-edge cell and the array border so remove_edge_masks did NOT
+    strip it (contradicting the "masks, not touching the edges" docstring). Confirmed empirically: a
+    far-corner object at [-2:,-2:] IS now stripped for (41,41)/(2047,1600)/(41,37).
+  - SOURCE (segmentation_detection.py): module logger added. segment_2d captures
+    `orig_h, orig_w = std_proj.shape` before block_reduce, then `masks_resized = masks_resized[:orig_h,
+    :orig_w]` after upscale, before remove_edge_masks. segment_3d: `orig_h, orig_w =
+    min_substracted.shape[-2:]` (the `.shape` was a review catch - bare `[-2:]` indexes the array),
+    `masks_resized[:, :orig_h, :orig_w]` (axis 0 = Z is never binned). Both:
+    `if orig_h % factor or orig_w % factor: logger.debug(...)` naming the padded size - debug not
+    warning (crop makes it correct; don't spam a cluster run). assign_spots_to_mask needs NO change
+    (already np.clips coords).
+  - TESTS (test_segmentation.py, 7 -> 13): mock_cellpose_2d/_3d rewritten to `model.eval.side_effect =
+    fake_eval` where fake_eval returns a mask shaped like its INPUT (real Cellpose does this) - the old
+    fixed-(10,10) return_value only matched because 40/4==10, so non-divisible inputs never hit the real
+    padding path. New: test_output_shape_divisible/_non_divisible (2D+3D, the core (41,41)->(41,41)
+    regression), test_non_square_non_divisible (41,37 - catches an axis swap), test_logs_when_padding_
+    needed (2D+3D) + test_no_log_when_divisible (2D) - all use
+    `caplog.set_level(logging.DEBUG, logger="spot_detector.segmentation_detection")` (MANDATORY: caplog
+    defaults to WARNING+ and the module logger inherits WARNING from root, so the debug record is
+    dropped before any handler without it; test_no_log_when_divisible was passing vacuously - empty
+    caplog.text - until set_level was added). Existing tests: renamed test_output_shape* ->
+    *_divisible, fixed a stale "label 2, corner" comment (corner is label 1).
+  - OPTIONAL polish not done (fine as-is): 3D test_output_shape_non_divisible uses (3,41,41) not
+    (5,41,41) - Z=3 is already non-divisible by 4 so it covers "Z passes through" too, just less
+    obviously; no 3D test_no_log_when_divisible (same guard line as 2D, genuinely redundant).
+  - INCIDENT (process note, not a code issue): Claude ran `git checkout tests/test_segmentation.py` to
+    undo a scratch debugging edit and discarded the user's uncommitted work on that file. Recovered
+    from VSCode local history (~/.config/Code/User/History) + the edits visible in the chat. LESSON:
+    never `git checkout`/`git restore`/`git stash` a file with uncommitted user work - use a copy under
+    the scratchpad dir for throwaway experiments.
 ---
 
 7. code organization: split qc_figures.py   <- DONE 2026-09-04. Split executed on the panel-coverage safety
@@ -1038,4 +1079,31 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
        its trailing lines) before the pass was called done - a good example of why "did the fixture change
        preserve behavior" needs an explicit re-check pass, not just "tests still pass" (a dead assertion
        doesn't fail the suite either way).
+---
+
+9. notebooks/ production-readiness pass   <- NOTED 2026-09-08, not started. User's assessment: all 3
+   are "almost there", just need a polish pass. The 3 notebooks and their intended roles:
+     - spot_detection_pipeline.ipynb (10 cells, 0 markdown, 0 saved outputs) - "interactive pipeline
+       run". BIGGEST GAP: it carries its OWN reimplementation of the pipeline (a MicroscopyQC class,
+       process_field_of_view / stdev_project_xarray helpers, direct cv2 + nd2 usage) rather than
+       calling the spot_detector package - almost certainly predates the package. Decide: rewrite to
+       drive run_pipeline() / the real segmentation_detection + qc_figures functions, or re-scope it
+       as a deliberately-standalone scratch tool. Zero narrative.
+     - pipeline_validation.ipynb (23 cells, 6 markdown, 17 code, 8 with saved outputs) - "interactive
+       spot validation with napari". CLOSEST to done: already imports from spot_detector
+       (PipelineConfig, segmentation_detection.*), loads the real configs/config.yml, has markdown
+       section headers. Polish: check hardcoded paths, decide on committed outputs.
+     - analysis.ipynb (4 cells, 0 markdown, 2 with saved outputs) - "interactive data analysis &
+       exploration". Reads output/tables/_*3d.csv (globs + takes [0] silently), seaborn plots with an
+       add_n_annotation helper. Needs narrative + a less fragile file-picking story.
+   Cross-cutting polish items (apply to all 3):
+     - consistent project-root / config / data-dir discovery (currently a mix of Path.cwd().parent,
+       os.chdir, ../output/tables, glob-and-take-[0] - all assume a specific CWD).
+     - narrative markdown: at minimum a title cell + one sentence per section saying what/why.
+     - decide the committed-output policy: strip all outputs (nbstripout in pre-commit) for a clean
+       diff, OR deliberately keep a curated set as worked examples - pick one and apply uniformly.
+       Currently inconsistent (0 / 8 / 2 cells with outputs).
+     - imports: dedupe, sort, drop unused; run ruff on the notebooks too (ruff can lint .ipynb).
+     - top-to-bottom "Restart & Run All" must succeed from a clean kernel for each.
+   Not blocking anything; do after item 6 (segmentation bin_factor bug) unless priorities shift.
 ---

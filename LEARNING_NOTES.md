@@ -5,6 +5,53 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-09-09 — the `bin_factor` mask-misalignment bug: fixing it, and testing a `logger.debug`
+
+**The bug.** `segment_2d`/`segment_3d` downscale with `skimage.block_reduce(img, (factor, factor))` before
+Cellpose, then upscale the mask with `.repeat(factor)`. `block_reduce` *silently zero-pads* to the next
+multiple of `factor` when a dimension isn't evenly divisible — so a `(41, 41)` image becomes `(11, 11)`
+binned, and `.repeat(4)` gives back `(44, 44)`, not `(41, 41)`. The mask ends up bigger than the source and
+misaligned with the full-resolution spot coordinates that get looked up in it downstream. Silent, and only
+bites on image sizes that aren't multiples of `bin_factor` — invisible if you only ever test one clean size.
+
+**The fix (crop-back over fail-fast).** Capture the pre-bin spatial shape (`std_proj.shape` /
+`min_substracted.shape[-2:]`) and slice the upscaled mask back to it (`masks_resized[:h, :w]`,
+`[:, :h, :w]` for 3D) before edge-mask removal. `block_reduce` pads the *bottom/right*, so the top-left
+`h × w` block is the real data. Chose this over raising on non-divisible input because the crop is a genuine
+fix and the padded pixels are never data — fail-fast would just punish legitimate odd-sized sensors.
+**Bonus:** it also *corrects* edge-mask removal. Pre-fix, a cell on the true bottom/right image edge had the
+zero-pad margin between it and the array border, so `remove_edge_masks` didn't strip it — the fix makes the
+cropped border the real border again.
+
+**A subtle review catch:** `orig_h, orig_w = min_substracted.shape[-2:]` — with `.shape`, that's the last two
+dimensions. Without it (`min_substracted[-2:]`) you'd be *indexing the array* — the last two z-planes — and
+unpacking two `(H, W)` arrays into `orig_h`/`orig_w`, which then blow up the slice.
+
+**Testing a `logger.debug` line — two gotchas.**
+1. **The mock has to model reality.** `mock_cellpose_2d` originally hard-coded `eval.return_value` to a fixed
+   `(10, 10)` mask. That only worked because the existing tests use `(40, 40)` and `40 / 4 == 10` — feed a
+   non-divisible size and the fake returns a mask that doesn't match `block_reduce`'s output, so the test
+   wouldn't exercise the real padding path. Fix: `eval.side_effect = fake_eval` where `fake_eval(img, **kw)`
+   builds `np.zeros(img.shape[-2:])` — the fake now follows its input's shape the way real Cellpose does.
+   `side_effect` is a *function* called with the mock's args; its return replaces `return_value`.
+2. **`caplog` doesn't see DEBUG by default.** Two filters, both at WARNING: `caplog`'s own handler, *and* the
+   module logger (which inherits WARNING from root, so a `logger.debug` record is dropped at the logger
+   before any handler). `caplog.set_level(logging.DEBUG, logger="spot_detector.segmentation_detection")` in
+   each test fixes both. Without it `caplog.text` is `''` — which means the *negative* test
+   (`assert "…" not in caplog.text`) passes **vacuously**, hiding the omission. The negative test is the one
+   that gives the pair teeth (fires ⇔ padding happened), so it has to be a real assertion.
+
+**Process incident (my mistake).** To reproduce the user's `caplog` error I made a scratch edit to
+`test_segmentation.py` and then ran `git checkout tests/test_segmentation.py` to undo it — which discarded
+the user's *uncommitted* work on that file (the fixture rewrite + new tests). Recovered it from VSCode's
+local history (`~/.config/Code/User/History/`, keyed per-file in `entries.json`) plus the edits visible in
+the chat transcript. **Lesson:** never run `git checkout` / `git restore` / `git stash` against a file that
+holds uncommitted work you didn't write. Throwaway experiments go in a copy under the scratchpad dir.
+
+Result: source fixed, `test_segmentation.py` 7 → 13, suite 192, `todo.txt` item 6 closed.
+
+---
+
 ## 2026-09-08 (cont'd) — the two summary-figure classes, and "guard the branch by omission"
 
 Finished `TestMakeSceneSummaryFigure` (2) + `TestMakeRunSummaryFigure` (3). **item 4 fully closed** —
