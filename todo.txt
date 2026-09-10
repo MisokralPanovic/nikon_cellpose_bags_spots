@@ -716,13 +716,10 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
       CLAUDE.md updated.
   SOURCE CHANGE 2026-09-08 (deliberate): all 3 builders' savefig calls in qc_figures.py dropped
   dpi=600 -> dpi=300 (make_qc_figure, make_scene_summary_figure, make_run_summary_figure). Speeds the
-  smoke tests ~4x AND every real pipeline run. User's intuition: 300 dpi is good enough for these QC
-  panels. OPEN (user doing this FIRST, before items 9 then 3): re-run the pipeline against a real
-  config (`uv run spot-detector configs/config.yml`) to regenerate the QC figures at 300 dpi, eyeball
-  per-scene + both summaries against the 600-dpi copies the user already has on hand - confirm spot
-  markers / small text / flow-wheel detail still legible. Revert the one savefig line per builder if
-  not. AGREED WORK ORDER (2026-09-09): (1) this dpi check, (2) item 9 notebooks, (3) item 3 cluster
-  readiness.
+  smoke tests ~4x AND every real pipeline run. RESOLVED 2026-09-09: user regenerated the QC figures at
+  300 dpi from a real run and compared against 600-dpi copies on hand - "300 dpi is fine". Change is
+  permanent, no revert. AGREED WORK ORDER for what's left (2026-09-09): (1) [done] this dpi check,
+  (2) item 9 notebooks, (3) item 3 cluster readiness.
 
   DONE 2026-09-03: TestPanelFlow written (learning-mode - Claude advised, user wrote every test). 8
   tests, all pass, back to the mocked-`ax` panel style but also mocking _flow_to_rgb itself for the
@@ -1081,29 +1078,64 @@ Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data 
        doesn't fail the suite either way).
 ---
 
-9. notebooks/ production-readiness pass   <- NOTED 2026-09-08, not started. User's assessment: all 3
-   are "almost there", just need a polish pass. The 3 notebooks and their intended roles:
-     - spot_detection_pipeline.ipynb (10 cells, 0 markdown, 0 saved outputs) - "interactive pipeline
-       run". BIGGEST GAP: it carries its OWN reimplementation of the pipeline (a MicroscopyQC class,
-       process_field_of_view / stdev_project_xarray helpers, direct cv2 + nd2 usage) rather than
-       calling the spot_detector package - almost certainly predates the package. Decide: rewrite to
-       drive run_pipeline() / the real segmentation_detection + qc_figures functions, or re-scope it
-       as a deliberately-standalone scratch tool. Zero narrative.
-     - pipeline_validation.ipynb (23 cells, 6 markdown, 17 code, 8 with saved outputs) - "interactive
-       spot validation with napari". CLOSEST to done: already imports from spot_detector
-       (PipelineConfig, segmentation_detection.*), loads the real configs/config.yml, has markdown
-       section headers. Polish: check hardcoded paths, decide on committed outputs.
-     - analysis.ipynb (4 cells, 0 markdown, 2 with saved outputs) - "interactive data analysis &
-       exploration". Reads output/tables/_*3d.csv (globs + takes [0] silently), seaborn plots with an
-       add_n_annotation helper. Needs narrative + a less fragile file-picking story.
-   Cross-cutting polish items (apply to all 3):
-     - consistent project-root / config / data-dir discovery (currently a mix of Path.cwd().parent,
-       os.chdir, ../output/tables, glob-and-take-[0] - all assume a specific CWD).
-     - narrative markdown: at minimum a title cell + one sentence per section saying what/why.
-     - decide the committed-output policy: strip all outputs (nbstripout in pre-commit) for a clean
-       diff, OR deliberately keep a curated set as worked examples - pick one and apply uniformly.
-       Currently inconsistent (0 / 8 / 2 cells with outputs).
-     - imports: dedupe, sort, drop unused; run ruff on the notebooks too (ruff can lint .ipynb).
-     - top-to-bottom "Restart & Run All" must succeed from a clean kernel for each.
-   Not blocking anything; do after item 6 (segmentation bin_factor bug) unless priorities shift.
+9. notebooks/ production-readiness pass   <- IN PROGRESS 2026-09-10 (user implementing). SCOPE DECIDED:
+   consolidate to 3 notebooks (from 4), each with a distinct job. The earlier "pipeline_walkthrough
+   stage-by-stage" plan is SUPERSEDED - it just duplicated what pipeline_validation.ipynb already does
+   (load config -> pick scene -> segment/detect/assign -> look at it).
+
+   FINAL SET (3 notebooks):
+
+   (a) pipeline_run.ipynb  (NEW - user starting here, it's the simplest)
+       Thin Jupyter front-end to the CLI, for people who'd rather run from a notebook than the terminal.
+       ~4 cells: setup + load_config -> run_pipeline(config) -> display output/figures/_run_summary_*.png
+       + head() of output/tables/_run_objects_{mode}.csv. Nothing clever - it's `uv run spot-detector
+       configs/config.yml` with the outputs shown inline.
+
+   (b) pipeline_validation.ipynb  (KEEP - or rename to pipeline_tuning.ipynb, user's call)
+       Single-scene: run the stages once, inspect, sweep params, decide. Absorbs the param-sweep idea
+       (the deleted pipeline_param_optimalisation.ipynb) and the deleted spot_detection_pipeline.ipynb's
+       "look at one scene" intent. Structure:
+         - Setup: config load, robust project-root (DROP os.chdir), ModelBundle.load + the "what
+           loaded" print (models.cellpose.pretrained_model / models.spotiflow.config.is_3d, and turn
+           on `logging.getLogger("spot_detector").setLevel(DEBUG)` so load() logs its custom-vs-
+           fallback decision).
+         - Pick file + scene; load objects_stack / spots_stack / dx / dz EXACTLY as
+           run_pipeline._process_scene does (run_pipeline.py:247-256).
+         - Knobs cell: BIN_FACTOR / PROB_THRESH / MIN_DISTANCE defaulting from config.* - the single
+           override point; the run + sweep cells read the knobs, not config.* .
+         - Single run: segment_2d/3d -> detect_spots_spotiflow -> assign_spots_to_mask, print counts.
+           Branch on config.mode.do_3d like _process_scene. NO white_tophat (the main pipeline doesn't).
+         - Inspect: stackview.slice(...) for BOTH 2D and 3D (it gives a Z slider on a (Z,Y,X) array) -
+           seg projection + mask overlay, spot channel + points. THEN an optional napari cell for the
+           full 3D viewer - MANUAL ONLY (markdown note "run this yourself if you have a display"), NOT
+           in the Restart-&-Run-All path (napari needs a Qt display, breaks headless/SSH).
+         - Sweep (run when tuning): grid over the knobs -> metrics DataFrame (n_obj, n_spots,
+           n_assigned, frac_assigned, seg_secs) -> a plot or two. Structure loops bin_factor-OUTER
+           (re-runs Cellpose, ~seconds each) and prob_thresh/min_distance inner+cheap (run
+           detect once at a low thresh, re-filter points/details in the notebook).
+         - Chosen params: markdown cell, "copy these into configs/config.yml".
+       Cleanup debt to sweep in: dead error cells (details.flow.head(), details.ndim on a
+       SimpleNamespace), the duplicate detect-spots cell, `config_path = config_path =`.
+
+   (c) analysis.ipynb  (KEEP)
+       Post-run CSV analysis - reads output/tables/*.csv, makes the comparison graphs. Needs narrative
+       markdown + a less fragile file-picking story (currently globs _*3d.csv and takes [0] silently).
+
+   DELETE: pipeline_param_optimalisation.ipynb (untracked new file, just `rm` - its intent folds into
+   (b)). spot_detection_pipeline.ipynb already deleted (shows as D in git status).
+
+   Cross-cutting polish (all 3):
+     - consistent project-root discovery - one pattern, no os.chdir, works regardless of CWD.
+     - narrative markdown: title cell + one sentence per section (what/why).
+     - committed-output policy: pick one - strip all (nbstripout in pre-commit) OR keep a curated set
+       as worked examples - and apply uniformly. Currently 0 / 8 / 2 cells with outputs. LEANING strip
+       (2026-09-10): pipeline_run.ipynb explorer is being built with itables + ipyfilechooser (`uv add`
+       both) - itables embeds table rows as JSON in cell output, so committing outputs = bloat + noisy
+       diffs. Decide once the explorer cell settles.
+     - imports deduped/sorted/pruned; run ruff on the .ipynb too.
+     - Restart & Run All must succeed from a clean kernel (the napari cell in (b) is the one exception,
+       explicitly marked manual).
+
+   FOLLOW-UP when done: update CLAUDE.md's notebooks paragraph (currently says spot_detection_pipeline
+   is "being rewritten as pipeline_walkthrough" - now wrong).
 ---

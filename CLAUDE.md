@@ -141,11 +141,12 @@ are one segmented object each), plus matching PNGs under `output/figures/`.
 Input images are read via `bioio.BioImage`, which abstracts over Nikon `.nd2` and other formats (`.czi`, `.lif`,
 OME-TIFF) — the specific `bioio-*` plugin used depends on file extension, handled transparently by `bioio`.
 
-`notebooks/` contains three interactive notebooks, not part of the package: `spot_detection_pipeline.ipynb`
-(interactive pipeline run — currently carries its own pre-package reimplementation of the pipeline, not calls
-to `spot_detector`), `pipeline_validation.ipynb` (spot validation in napari — imports from `spot_detector`,
-loads the real config), `analysis.ipynb` (data exploration over `output/tables/*.csv`). A production-readiness
-polish pass is planned — `todo.txt` item 9.
+`notebooks/`, not part of the package, is mid-consolidation to three (`todo.txt` item 9, in progress
+2026-09-10): `pipeline_run.ipynb` (thin Jupyter front-end to `run_pipeline`, outputs shown inline),
+`pipeline_validation.ipynb` (single-scene: run the stages, inspect with `stackview` / optional napari,
+sweep `bin_factor`/`prob_thresh` to pick config values), `analysis.ipynb` (post-run analysis of
+`output/tables/*.csv`). The old `spot_detection_pipeline.ipynb` (a pre-package reimplementation) is being
+deleted; `pipeline_validation.ipynb` deliberately mirrors `run_pipeline._process_scene` with no divergence.
 
 `src/bash_scripts/` and `workflow/` (Snakemake) are an in-progress orchestration layer (repo setup, HPC conda/module
 loading, raw-data staging to/from Dropbox, result upload) — several scripts are stubs or contain scratch notes
