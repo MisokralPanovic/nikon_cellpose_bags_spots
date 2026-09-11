@@ -1078,20 +1078,31 @@ Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data 
        doesn't fail the suite either way).
 ---
 
-9. notebooks/ production-readiness pass   <- IN PROGRESS 2026-09-10 (user implementing). SCOPE DECIDED:
-   consolidate to 3 notebooks (from 4), each with a distinct job. The earlier "pipeline_walkthrough
-   stage-by-stage" plan is SUPERSEDED - it just duplicated what pipeline_validation.ipynb already does
-   (load config -> pick scene -> segment/detect/assign -> look at it).
+9. notebooks/ production-readiness pass   <- IN PROGRESS 2026-09-10 (user implementing). (a) DONE, (b)/(c)
+   still to do. SCOPE DECIDED: consolidate to 3 notebooks (from 4), each with a distinct job. The earlier
+   "pipeline_walkthrough stage-by-stage" plan is SUPERSEDED - it just duplicated what pipeline_tuning.ipynb
+   already does (load config -> pick scene -> segment/detect/assign -> look at it).
+
+   NAMES FINALISED 2026-09-10: pipeline_validation.ipynb -> pipeline_tuning.ipynb,
+   analysis.ipynb -> pipeline_data_analysis.ipynb (consistent pipeline_* prefix).
+
+   COMMITTED-OUTPUT POLICY DECIDED 2026-09-10: strip everything. nbstripout pre-commit hook added
+   (kynan/nbstripout, .pre-commit-config.yaml). No curated worked-example outputs - the markdown blurbs
+   carry the "what this shows" narrative instead, since stripped notebooks have no rendered output in the
+   repo. ruff also lints .ipynb (globs them by default).
 
    FINAL SET (3 notebooks):
 
-   (a) pipeline_run.ipynb  (NEW - user starting here, it's the simplest)
+   (a) pipeline_run.ipynb   <- DONE 2026-09-10 (committed 262a587)
        Thin Jupyter front-end to the CLI, for people who'd rather run from a notebook than the terminal.
-       ~4 cells: setup + load_config -> run_pipeline(config) -> display output/figures/_run_summary_*.png
-       + head() of output/tables/_run_objects_{mode}.csv. Nothing clever - it's `uv run spot-detector
-       configs/config.yml` with the outputs shown inline.
+       14 cells, 5 numbered sections w/ narrative markdown: Setup (imports + project-root walk, no
+       os.chdir needed at module level - actually DOES os.chdir, required because load_config validates
+       DirectoryPath relative to CWD) / Load+Review Config (full config as a MultiIndex DataFrame via
+       itables) / Run the Pipeline (guarded configure_logging + run_pipeline) / Run Summary (always-on
+       _run_summary_{mode}.png + _run_objects_{mode}.csv) / Browse Individual Outputs (ipyfilechooser
+       picker -> CSV as itables table or PNG inline). Restart-&-Run-All clean, ruff clean, nbstripout'd.
 
-   (b) pipeline_validation.ipynb  (KEEP - or rename to pipeline_tuning.ipynb, user's call)
+   (b) pipeline_tuning.ipynb  (renamed from pipeline_validation.ipynb)
        Single-scene: run the stages once, inspect, sweep params, decide. Absorbs the param-sweep idea
        (the deleted pipeline_param_optimalisation.ipynb) and the deleted spot_detection_pipeline.ipynb's
        "look at one scene" intent. Structure:
@@ -1117,25 +1128,96 @@ Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data 
        Cleanup debt to sweep in: dead error cells (details.flow.head(), details.ndim on a
        SimpleNamespace), the duplicate detect-spots cell, `config_path = config_path =`.
 
-   (c) analysis.ipynb  (KEEP)
-       Post-run CSV analysis - reads output/tables/*.csv, makes the comparison graphs. Needs narrative
-       markdown + a less fragile file-picking story (currently globs _*3d.csv and takes [0] silently).
+   (c) pipeline_data_analysis.ipynb  (renamed from analysis.ipynb)   <- FUNCTIONALLY DONE 2026-09-11,
+       markdown/docstring polish pending (WIP, uncommitted). All the original problems (bad glob, no
+       project-root handling, ignored data_col, single figure, no title cell) are fixed. Current shape,
+       6 sections:
+         1. Setup - imports, project-root chdir, load_config.
+         2. Select Table - ipyfilechooser over output/tables/, falls back to _run_objects_{mode}.csv when
+            nothing's picked (Restart-&-Run-All safe). Loads with
+            keep_default_na=False, na_values=[""] (item 10 / CLAUDE.md utils.py bullet - verified working:
+            a real "None_0.nd2" -> Condition "None" row survives the round-trip as a string, prints
+            "3 condition(s)" correctly) AND .dropna(how="all", axis=1) to drop the inactive-mode columns
+            (Volume_um3 etc. in a 2D table) so describe()/dropdowns aren't cluttered with all-NaN columns.
+         3. Exploratory Data Analysis, 4 sub-blocks (needs subheadings, see polish list):
+              3.1 optional descriptive columns - condition_meta dict + merge, gated behind an
+                  ADD_CONDITION_META flag so it's a no-op by default (idempotent re-run: drops any
+                  already-merged columns before re-merging).
+              3.2 df.describe().T
+              3.3 stats-per-group - two Dropdowns (group: nunique()<=15 cols; metric: numeric cols) +
+                  an Output that redraws groupby(...).describe() on change.
+              3.4 pygwalker free-form exploration.
+         4. Browse Individual Outputs - ipyfilechooser over output/figures/*.png (table browsing dropped;
+            sections 2/3 already own that job).
+         5. Final Figure Plot - a general-purpose `plot_metric_by_group(df, metric, group, hue=None,
+            scale="log", category_axis="auto", log_offset=None, ...)` template (LEARNING_NOTES.md
+            2026-09-11 has the full design rationale) + a knobs cell + one call. Reusable beyond this one
+            analysis if it's ever promoted out of the notebook.
 
-   DELETE: pipeline_param_optimalisation.ipynb (untracked new file, just `rm` - its intent folds into
-   (b)). spot_detection_pipeline.ipynb already deleted (shows as D in git status).
+       REMAINING POLISH (small, before calling (c) fully done):
+         - Title cell (section 1) is still placeholder text ("Some text about what is here...") - needs
+           the real intro paragraph, same treatment pipeline_run.ipynb's title got.
+         - Section 2 markdown ("with gui chose table to analyse") - needs a real sentence, should mention
+           the fallback-to-run-table default and the keep_default_na guard.
+         - Section 3's one markdown blurb covers all 4 sub-blocks with leftover scratch questions ("maybe
+           something for exploratory tables? stats?") - split into ### 3.1/3.2/3.3/3.4 subheadings, one
+           sentence each.
+         - Section 4 markdown: typo `pipeline.run.ipynb` -> `pipeline_run.ipynb`, and should note the
+           scope narrowed to PNG-only.
+         - `plot_metric_by_group`'s docstring/comment still says "e.g. 1e-8" for log_offset, but the knobs
+           cell actually uses LOG_OFFSET = 1 - the right choice for count data (log1p-style), NOT a
+           universal default. Docstring should say "scale the offset to the metric" rather than naming a
+           fixed magic number.
+         - cosmetic: the log_offset parameter's type annotation got wrapped oddly across two lines by
+           whatever formatted it last - ruff-format (pre-commit hook, also covers .ipynb) will normalize
+           this automatically on commit, no manual fix needed.
+
+   DELETE: both done 2026-09-10. pipeline_param_optimalisation.ipynb `rm`'d (intent folded into (b)).
+   spot_detection_pipeline.ipynb deleted.
 
    Cross-cutting polish (all 3):
      - consistent project-root discovery - one pattern, no os.chdir, works regardless of CWD.
      - narrative markdown: title cell + one sentence per section (what/why).
-     - committed-output policy: pick one - strip all (nbstripout in pre-commit) OR keep a curated set
-       as worked examples - and apply uniformly. Currently 0 / 8 / 2 cells with outputs. LEANING strip
-       (2026-09-10): pipeline_run.ipynb explorer is being built with itables + ipyfilechooser (`uv add`
-       both) - itables embeds table rows as JSON in cell output, so committing outputs = bloat + noisy
-       diffs. Decide once the explorer cell settles.
+     - committed-output policy: DECIDED 2026-09-10 - strip all, nbstripout pre-commit hook added. itables
+       embeds table rows as JSON in cell output + the browser embeds PNGs, so committing outputs would be
+       bloat + noisy diffs for zero benefit. Markdown blurbs carry the narrative instead.
      - imports deduped/sorted/pruned; run ruff on the .ipynb too.
      - Restart & Run All must succeed from a clean kernel (the napari cell in (b) is the one exception,
        explicitly marked manual).
 
-   FOLLOW-UP when done: update CLAUDE.md's notebooks paragraph (currently says spot_detection_pipeline
-   is "being rewritten as pipeline_walkthrough" - now wrong).
+   FOLLOW-UP when done: update CLAUDE.md's notebooks paragraph. (a) done -> CLAUDE.md updated 2026-09-10
+   with the 3-notebook list + rename notes + nbstripout policy. Redo again once (b)/(c) land.
+---
+
+10. README.md pass - portfolio-facing   <- NOT STARTED (agreed 2026-09-10, do after item 9, before/around
+    item 3). README.md already exists and is a solid usage guide (overview, mermaid flow, key features,
+    tech stack, install, config schema, architecture, testing). Two open questions to settle:
+
+    (a) PURPOSE. It's going on MV's portfolio, so it has to do double duty:
+        - a real how-to-use-the-package guide (mostly there already), AND
+        - a showcase of what was designed / learned / practiced building this (pydantic frozen config +
+          model_validator precedence, exception taxonomy w/ FatalPipelineError, 2D/3D single-flag
+          fan-out, offline mocked ML test suite, block_reduce padding bug + crop-back fix, three-tier QC
+          figures, pre-commit/ruff/nbstripout hygiene, learning-mode collaboration itself).
+
+    (b) ONE FILE OR TWO. Leaning two: keep README.md lean and user-facing; put the "engineering notes /
+        things I learned" narrative in a second doc (docs/ENGINEERING_NOTES.md or similar) that README
+        links to. LEARNING_NOTES.md is the raw source material for that second doc but is too
+        stream-of-consciousness / internal to be the portfolio artifact as-is. DECIDE when starting.
+
+    Existing inline TODOs in README.md to clear as part of this:
+      - license badge + LICENSE file (line 5)
+      - "Example Output" section is empty - *.png is gitignored repo-wide; carve out an exception
+        (docs/*.png is already un-ignored in .gitignore) and commit 1-2 captioned QC figures (line 61).
+
+    ADD to README (decided 2026-09-10): a naming-convention note in the Usage / config section - raw data
+    filenames must NOT produce a condition token of None / NA / NaN / null / inf / empty. These are default
+    pandas NA tokens: `None_0.nd2` -> condition "None" -> reads back from output/tables/*.csv as NaN. The
+    pipeline stays correct in-run (in-memory concat), the breakage is on CSV read-back. Notebooks now read
+    with `pd.read_csv(path, keep_default_na=False, na_values=[""])` as a belt-and-braces guard, but the
+    filenames are the real fix. (See CLAUDE.md utils.py bullet, LEARNING_NOTES.md 2026-09-10.)
+    Also: config schema block in README (lines 104-126) is STALE - shows `paths.cellpose_models_path` /
+    `paths.spotiflow_models_path`, but the pydantic migration moved these to
+    `segmentation.cellpose_model_path` / `detection.spotiflow_model_path` (singular) and added
+    `use_default_model` flags. Fix when doing this pass.
 ---

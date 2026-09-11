@@ -5,6 +5,103 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-09-11 — designing a general plot template, not a one-off figure
+
+**The ask.** `pipeline_data_analysis.ipynb`'s final-figure cell started as a fixed boxplot (spot count by
+condition, copied from an older project's notebook). Turning it into a *template* — one function any future
+metric/grouping goes through — meant finding the parts that were silently tied to that one call and making
+them parameters instead.
+
+**Orientation as a rule, not a choice per plot.** Preference: category labels on the x-axis (vertical boxes)
+by default, flipping to the y-axis (horizontal) only when labels are long enough to crowd/rotate on x. That
+became `category_axis="auto"` + `label_len_threshold=12`, computed from `max(len(label) for label in
+labels)`. Key: it's a *default*, with an explicit `"x"`/`"y"` override — a heuristic that silently overrides
+your judgement on some future dataset is worse than one you can see and turn off.
+
+**The log-scale zero problem, and why "just add a tiny number" isn't a universal fix.** `Spot_Count` has real
+zeros; `log10(0)` is undefined, so a naively log-scaled boxplot just drops those points off the axis with no
+error and no visual cue anything is missing. First instinct was an epsilon offset (`1e-8`) baked into the
+plot function. Better: expose it as a `log_offset` parameter, off by default, and print exactly what
+happened when it fires (`"added 1 before log-scaling (df itself is unchanged)"`) — silent data
+transformation before a plot is exactly the kind of thing that should never be silent, even when it's
+harmless.
+
+**Then the magnitude mattered.** `1e-8` is right for a continuous measurement near zero; it's wrong for count
+data. `Spot_Count` is an integer count, so the natural offset is `1` — the same reasoning behind
+`np.log1p`, which is `log(x + 1)` for exactly this reason. Adding `1e-8` to a count column would have
+squashed the "0 spots" boxes into a sliver at the extreme left of the log axis (an ~8-decade gap between
+`1e-8` and `1`), technically visible but visually meaningless. This is why `log_offset` had to be a
+user-supplied knob rather than a hardcoded constant: the "right" tiny number depends on what the metric
+*is*, not just whether it can hit zero. A template can supply the mechanism (shift before scaling, warn
+loudly) but not the number — that's domain knowledge about the specific column.
+
+**Dropped from the design:** a sample-size (`n=`) text annotation per box. A `stripplot` overlay already
+makes the point count visually obvious (that's the whole reason to overlay points on a boxplot rather than
+just drawing the box) — a redundant text label add complexity (it has to know which axis carries the
+category to place itself correctly) for no information the plot doesn't already show.
+
+---
+
+## 2026-09-10 — notebooks as thin front-ends, and keeping them out of the diff
+
+**The consolidation.** Four notebooks (overlapping, some pre-package reimplementations) → three, each with
+one job: `pipeline_run.ipynb` (run the whole pipeline from Jupyter), `pipeline_tuning.ipynb` (single scene,
+sweep params, pick config values), `pipeline_data_analysis.ipynb` (post-run CSV analysis). The rule that
+made the cut easy: **a notebook either calls the package or it doesn't exist.** The old
+`spot_detection_pipeline.ipynb` was a parallel reimplementation of the pipeline — every bug fix had to land
+twice, and it silently drifted. `pipeline_run.ipynb` is ~14 cells that call `load_config` + `run_pipeline`
+and render the outputs; there's nothing in it to drift.
+
+**A footgun that only bites in notebooks.** `load_config` validates `paths.raw_data_dir` /
+`detection.spotiflow_model_path` as pydantic `DirectoryPath` — existence is checked *relative to the current
+working directory*. From the CLI, CWD is wherever you typed `uv run spot-detector`, i.e. the repo root.
+Jupyter starts its kernel in the notebook's own directory (`notebooks/`), so the same config that loads
+fine from the terminal raises `ValidationError` in a notebook. Fix: walk up from `Path.cwd()` to the first
+ancestor containing `configs/config.yml`, then `os.chdir` there before `load_config`. (A cleaner design
+would resolve config paths relative to the config file's location, not CWD — noted, not changing it now.)
+
+**`nbstripout` — why strip, not curate.** A committed `.ipynb` stores every cell's rendered output inline in
+the JSON: base64 PNGs, and with `itables` the *entire table* re-encoded as JSON per display. That's bloat
+and, worse, a huge diff every time you re-run even if no code changed. Two ways to auto-strip on commit:
+a git `clean` filter (`nbstripout --install`, but it lives in `.git/config` so every clone must run it) or
+a **pre-commit hook** (`repo: https://github.com/kynan/nbstripout`) — the hook is versioned in
+`.pre-commit-config.yaml`, so it's automatic for everyone. Chose strip-everything over "keep a curated set
+of worked-example outputs" because the markdown blurbs already carry the "what this cell shows" narrative,
+and a curated-output policy needs constant discipline to not rot. Like the ruff hooks, nbstripout *modifies
+files*, so the first commit after it fires aborts with "files were modified by this hook" — re-add, re-commit.
+
+**Notebook narrative = the only durable record once outputs are stripped.** With no rendered output in the
+repo, a reader browsing the notebook on GitHub sees code + markdown only. So each section got a one-sentence
+markdown blurb saying what its output *would* show and — more usefully — encoding the footguns already hit
+(CWD-relative validation, non-idempotent `configure_logging`). That's knowledge a bare `## Run` header can't
+carry.
+
+---
+
+## 2026-09-10 — a condition named "None" disappears on CSV read-back
+
+Noticed a run where `None_0.nd2` produced rows with a blank `Condition` in the analysis notebook.
+`parse_condition_from_name("None_0")` → `"None"` is *correct* — the regex strips the `_0` FOV suffix. The
+loss happens later: `run_pipeline` writes `Condition="None"` as the text `None`, and `pd.read_csv`'s default
+`na_values` includes `"None"` (also `"NA"`, `"NaN"`, `"null"`, `"N/A"`, `"<NA>"`, `""`, …), so it reads back
+as `NaN`. In-run everything is fine because it's all in-memory `pd.concat` — the bug is purely a
+`to_csv` → `read_csv` round-trip artifact, which is also why no test caught it (every test builds DataFrames
+in memory).
+
+**Fix at the I/O boundary, not the source.** `pd.read_csv(path, keep_default_na=False, na_values=[""])` — the
+exact inverse of `to_csv`'s `na_rep=""` default, so a genuinely-missing numeric cell (`""`) still becomes
+`NaN` and its column stays float, while a string column keeps `"None"`/`"NA"` verbatim. Left
+`parse_condition_from_name` untouched: a pure `str -> str` function has no business knowing about pandas'
+sentinel set. Belt-and-braces: README will also tell users not to name conditions with NA-like tokens, since
+those are hostile to R (`NA`), Excel, and SQL too — but the read idiom is the actual guard.
+
+**General lesson:** any `DataFrame` that round-trips through CSV has a lossy step most people forget — type
+inference and NA coercion happen on *read*, driven by the reader's defaults, not by what you wrote. If the
+schema is known (it is — it's your own pipeline's output), pin the reader (`dtype=`, `keep_default_na=`)
+instead of trusting inference.
+
+---
+
 ## 2026-09-09 — the `bin_factor` mask-misalignment bug: fixing it, and testing a `logger.debug`
 
 **The bug.** `segment_2d`/`segment_3d` downscale with `skimage.block_reduce(img, (factor, factor))` before

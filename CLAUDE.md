@@ -49,6 +49,12 @@ commit - deliberately split from the fast ruff checks since there's no CI in thi
 doesn't exist) and the full suite takes ~7s, too slow to tax every single local commit but still worth
 gating before code leaves the machine. Requires `uv run pre-commit install --hook-type pre-push` once
 (in addition to the default `pre-commit install`) for the `pre-push` stage to actually be installed.
+An `nbstripout` hook (added 2026-09-10, `repo: https://github.com/kynan/nbstripout`) runs on every commit
+too, stripping `outputs` + `execution_count` from every `.ipynb` under `notebooks/` — the committed-output
+policy for the notebook consolidation (`todo.txt` item 9) is "strip everything", so notebook diffs stay
+code-only and don't carry embedded image/itables-JSON blobs. `ruff-check`/`ruff-format` also lint the
+notebooks (ruff globs `*.ipynb` by default). Like the ruff hooks, both modify files in place, so the first
+commit after they fire aborts with "files were modified" — re-`git add` and re-commit.
 
 ## Architecture
 
@@ -89,7 +95,14 @@ Key modules under `src/spot_detector/`:
   pretrained default loads instead, with a `logger.warning` if a path was configured anyway (so an ignored
   path is never silent).
 - `utils.py` — `parse_condition_from_name` (strips a trailing `_<token><digits>` suffix from filenames to derive
-  the experimental condition, e.g. `Treated-DrugA_FOV3` -> `Treated-DrugA`), and `ModelBundle`, a dataclass that
+  the experimental condition, e.g. `Treated-DrugA_FOV3` -> `Treated-DrugA`). Gotcha (2026-09-10): a file like
+  `None_0.nd2` parses to the condition `"None"` — correct per the regex, but `"None"` (also `"NA"`, `"NaN"`,
+  `"null"`, `"inf"`, `""`) is a default pandas NA token, so it survives in-run (all in-memory `pd.concat`) but
+  reads back from `output/tables/*.csv` as `NaN`. Two-part mitigation: (1) README documents that conditions
+  must not be named with those tokens; (2) notebooks read pipeline tables with
+  `pd.read_csv(path, keep_default_na=False, na_values=[""])` — the exact inverse of `to_csv`'s `na_rep=""`,
+  so numeric NaN still round-trips while string columns don't get NA-coerced. `parse_condition_from_name`
+  itself is left alone (a pure string fn shouldn't know about pandas). `ModelBundle`, a dataclass that
   loads + validates both models together. `ModelBundle.load(config)` is the only way to construct it — takes
   just the `PipelineConfig`, no separate `do_3d` argument (dropped once `config.mode.do_3d` was available
   everywhere internally). Spotiflow loading has a fallback chain: try the custom model path from config -> if
@@ -142,11 +155,28 @@ Input images are read via `bioio.BioImage`, which abstracts over Nikon `.nd2` an
 OME-TIFF) — the specific `bioio-*` plugin used depends on file extension, handled transparently by `bioio`.
 
 `notebooks/`, not part of the package, is mid-consolidation to three (`todo.txt` item 9, in progress
-2026-09-10): `pipeline_run.ipynb` (thin Jupyter front-end to `run_pipeline`, outputs shown inline),
-`pipeline_validation.ipynb` (single-scene: run the stages, inspect with `stackview` / optional napari,
-sweep `bin_factor`/`prob_thresh` to pick config values), `analysis.ipynb` (post-run analysis of
-`output/tables/*.csv`). The old `spot_detection_pipeline.ipynb` (a pre-package reimplementation) is being
-deleted; `pipeline_validation.ipynb` deliberately mirrors `run_pipeline._process_scene` with no divergence.
+2026-09-10):
+
+- `pipeline_run.ipynb` — thin Jupyter front-end to `run_pipeline`, outputs shown inline (config table,
+  run-summary figure, interactive `ipyfilechooser` browser over `output/`). Equivalent to
+  `uv run spot-detector configs/config.yml`. **DONE** (committed 2026-09-10).
+- `pipeline_tuning.ipynb` (renamed from `pipeline_validation.ipynb`) — single-scene: run the stages,
+  inspect with `stackview` / optional napari, sweep `bin_factor`/`prob_thresh` to pick config values.
+  Deliberately mirrors `run_pipeline._process_scene` with no divergence. Still being reworked.
+- `pipeline_data_analysis.ipynb` (renamed from `analysis.ipynb`) — post-run analysis of
+  `output/tables/*.csv`. Functionally done as of 2026-09-11 (markdown/docstring polish pending, see
+  `todo.txt` item 9(c)): table picker (falls back to `_run_objects_{mode}.csv`, reads with
+  `keep_default_na=False, na_values=[""]` — see the `utils.py` bullet above — then drops all-NaN columns),
+  an optional `Condition -> metadata` mapping cell (gated behind a flag, off by default), `describe()` +
+  an interactive per-group stats widget, `pygwalker` for free-form exploration, a PNG browser, and a
+  general `plot_metric_by_group(df, metric, group, hue=None, scale="log", category_axis="auto",
+  log_offset=None, ...)` template for building presentation-ready figures (auto-picks horizontal vs.
+  vertical orientation from label length; `log_offset` loudly shifts non-positive values before
+  log-scaling instead of matplotlib silently dropping them off the axis — design rationale in
+  `LEARNING_NOTES.md` 2026-09-11).
+
+The old `spot_detection_pipeline.ipynb` (a pre-package reimplementation) and `pipeline_param_optimalisation.ipynb`
+(its param-sweep intent folded into `pipeline_tuning.ipynb`) have both been deleted.
 
 `src/bash_scripts/` and `workflow/` (Snakemake) are an in-progress orchestration layer (repo setup, HPC conda/module
 loading, raw-data staging to/from Dropbox, result upload) — several scripts are stubs or contain scratch notes
