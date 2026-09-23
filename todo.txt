@@ -1128,6 +1128,116 @@ Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data 
        Cleanup debt to sweep in: dead error cells (details.flow.head(), details.ndim on a
        SimpleNamespace), the duplicate detect-spots cell, `config_path = config_path =`.
 
+       REDESIGN 2026-09-17 / 09-22 -> 5-STAGE FLOW (supersedes the flat "Sweep" bullet above).
+       NOTE: this design was first written here on 09-17/09-22 but the text was LOST (Syncthing .venv/
+       repo conflict mess ~09-21, todo.txt + LEARNING_NOTES.md mtimes stuck at 09-21, no conflict copy
+       held it). RECONSTRUCTED 2026-09-23 from .remember/ session summaries + a notebook audit - finer
+       details of the original may differ.
+         Core idea: split each tunable param by COST. GPU inference (Cellpose eval, Spotiflow predict) is
+         expensive; the post-inference steps are cheap CPU and can drive live sliders without re-running
+         the network:
+           - bin_factor         -> changes the Cellpose INPUT -> must re-run Cellpose per value (slow).
+           - stitch_threshold   -> 3D only; run Cellpose per-plane ONCE (stitch_threshold=0-equivalent,
+                                   unstitched per-plane masks), then re-stitch per slider value via
+                                   cellpose's stitch3D (cheap, no GPU).
+           - prob_thresh        -> run Spotiflow ONCE at a low threshold, re-filter points by per-point
+                                   probability (or re-run spotiflow's prob_to_points on the cached
+                                   heatmap) per slider value (cheap, no GPU).
+         Stages:
+           1. Scene overview - file picker + scene slider (min-Z seed scene, spot-channel toggle; DONE),
+              then load objects/spots stacks for the chosen scene + stackview.switch overlay (DONE).
+           2. bin_factor small-multiples - run segmentation for a handful of bin_factor values, show the
+              mask overlays side by side (+ n_obj / seg_secs per panel).
+           3. stitch_threshold slider (3D only; skip cell/section in 2D) - cached per-plane masks ->
+              stitch3D on slider change -> mask overlay + n_obj.
+           4. prob_thresh slider - cached low-thresh detection -> re-filter -> points overlay + n_spots /
+              n_assigned / frac_assigned.
+           5. Final re-run with the chosen knobs through the real pipeline functions (segment_* ->
+              detect_spots_spotiflow -> assign_spots_to_mask), napari viewer for the final check (MANUAL
+              ONLY), then "Chosen params -> copy into configs/config.yml" markdown.
+         Knobs cell (BIN_FACTOR / STITCH_THRESHOLD / PROB_THRESH / MIN_DISTANCE, defaulting from
+         config.*) stays the single override point; stages 2-4 write their picks back to it.
+
+       STATUS AUDIT 2026-09-23 (notebook vs. plan). DONE: setup (project-root + os.chdir - KEEP it,
+       overrides the "DROP os.chdir" bullet above: pipeline_run.ipynb proved load_config's DirectoryPath
+       validation needs CWD = repo root), FileChooser, scene slider preview, ModelBundle.load, image
+       load, stackview.switch objects/spots overlay (fix 09-23: display_min/max must be real Python
+       LISTS of floats, one per image - stackview checks isinstance(x, list), so an np.percentile ndarray
+       gets broadcast whole to every image; plus colormap list for toggleable mode), bare single-run
+       segmentation + detection cells.
+       TODO, suggested order 4 -> 6 -> 5 -> 1, so the single-run path is correct before sweeps sit on it:
+         1. Mode override (sec 1.1, cell still "# change this code"). `mode` defined twice with
+            different case ("3D" cell 4, "3d" cell 6); run cells read config.mode.do_3d, not the local.
+            Override must reach ModelBundle.load (Spotiflow is picked by dimensionality) -> config is
+            frozen, so build a copy:
+            config.model_copy(update={"mode": config.mode.model_copy(update={"do_3d": ...})}).
+         2. Default file (sec 1.2) - BioImage(None) crashes if nothing picked. Fall back to the first file
+            in raw_data_dir, or state in markdown that the notebook isn't Run-All.
+         3. Delete the "Test Area" scratch cells (img.data, img_stact, img.current_scene).
+         4. Image-load cell uses whatever scene the preview slider last set (hidden side effect of
+            preview_scene). Add explicit img.set_scene(scene_slider.value) before get_image_data.
+         5. Knobs cell (see above) - missing; run cells read config.* directly.
+         6. assign_spots_to_mask never called, but the napari cell uses spot_labels -> NameError. Add it
+            + a counts print (n_obj, n_spots, n_assigned, frac_assigned).
+         7. Post-detection stackview cell is empty - mask curtain over objects, points over spots.
+         8-10. Stages 2/3/4 above (none started).
+         11. Metrics DataFrame across the sweep (n_obj, n_spots, n_assigned, frac_assigned, seg_secs) +
+             a plot.
+         12. Stage 5 final re-run + chosen-params markdown.
+         13. napari cell: move `import napari` out of the top imports into the (manual-only) cell - at
+             top level it breaks headless/SSH. Pick `scale` from do_3d, not `if dz`: in 2D mode on a
+             z-stack file the IMAGES are ZYX but masks/points are 2D, so a 3-element scale breaks the
+             labels/points layers.
+         14. Markdown: title cell + sec 1.1-1.3 placeholder notes.
+         15. Unused imports, ruff, nbstripout, Restart-&-Run-All up to the napari cell.
+
+       IMPLEMENTATION CHUNKS (agreed 2026-09-23, easiest -> hardest, tackled one at a time; each chunk
+       = Claude outlines the sub-edits + the one real design decision with options/recommendation, user
+       implements, Claude reviews the dumped cells + ruff, then docs updated):
+         Chunk 1  cleanup + hidden state        items 3, 13a, 4, 2   <- DONE 2026-09-23 (verified)
+         Chunk 2  correct single run            items 5, 6           <- NEXT
+         Chunk 3  single-run visualisation      items 13b, 7
+         Chunk 4  mode override                 item 1
+         Chunk 5  bin_factor small-multiples    items 8, 11
+         Chunk 6  prob_thresh slider            item 10
+         Chunk 7  stitch_threshold slider       item 9
+         Wrap-up  final run / chosen params / markdown / ruff+nbstripout   items 12, 14, 15
+
+       CHUNK 1 DONE 2026-09-23 (verified by dumping cells + ruff):
+         - Test Area scratch cells deleted.
+         - `import napari` moved out of top imports into its own cell right after a
+           "> Manual only: needs a display (Qt). Skip on headless/SSH" markdown note in sec 3.
+         - Image-load cell starts with img.set_scene(scene_slider.value). User chose to DROP the duplicate
+           dim_order recompute - that cell now relies on dim_order from the scene-preview cell (fine: it's
+           computed from img.dims.order, same file).
+         - Default-file cell (option A, decided): if fc.selected is None -> sorted() over
+           data_folder.iterdir(), is_file() and not name.startswith(".") (skips .gitkeep), explicit
+           FileNotFoundError if empty, print the fallback name; else Path(fc.selected) (str -> Path so
+           `selected` is always a Path). BioImage(selected) in sec 1.3. Fallback today = None_0.nd2.
+         - ruff on the notebook: 3 findings, all expected/deferred: I001 import order (pre-commit
+           --fix handles it), F401 assign_spots_to_mask unused + F821 spot_labels undefined (both
+           resolved by chunk 2 item 6).
+         Minor nit (not blocking, raise in chunk 3): stackview.switch overlay now uses colormap
+         ["gray_r", "pure_magenta"]. In toggleable mode stackview ADDS the channels' RGB and clips at 255.
+         gray_r maps low intensity to white, so the background is near-white and white + magenta clips to
+         white -> spots only show where the BF image is bright (i.e. dark in gray_r). Consider "gray" (or a
+         pure_* colour) for objects in the overlay, keeping gray_r for single-channel viewing.
+
+       NEXT SESSION: open with Chunk 2, presented the same way as chunk 1 on 2026-09-23. That means the
+       sub-edits as a lettered list (2a, 2b, ...) with the exact cell each touches, the "why" for each,
+       the one real design decision laid out as options A/B/C + a recommendation, a short Insight block,
+       then hand over to the user to implement and review afterwards. Chunk 2 content to cover:
+         - Knobs cell (BIN_FACTOR / STITCH_THRESHOLD / PROB_THRESH / MIN_DISTANCE from config.*),
+           placed after the image load / before sec 2.1; rewire the segment_* and detect_spots_spotiflow
+           cells to read the knobs instead of config.*. Design decision to present: knob
+           naming/placement - one knobs cell vs. per-section knobs next to 2.1/2.2, and whether
+           mode (do_3d) belongs in it or stays in 1.1 (chunk 4).
+         - assign_spots_to_mask call (check its signature in segmentation_detection.py first) ->
+           spot_labels, then a counts print: n_obj, n_spots, n_assigned, frac_assigned (guard
+           n_spots == 0 division).
+         - Make sure the cells mirror run_pipeline._process_scene (argument names/order) - re-read it
+           before presenting.
+
    (c) pipeline_data_analysis.ipynb  (renamed from analysis.ipynb)   <- FUNCTIONALLY DONE 2026-09-11,
        markdown/docstring polish pending (WIP, uncommitted). All the original problems (bad glob, no
        project-root handling, ignored data_col, single figure, no title cell) are fixed. Current shape,
@@ -1220,4 +1330,15 @@ Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data 
     `paths.spotiflow_models_path`, but the pydantic migration moved these to
     `segmentation.cellpose_model_path` / `detection.spotiflow_model_path` (singular) and added
     `use_default_model` flags. Fix when doing this pass.
+
+11. run_pipeline file listing picks up dotfiles   <- NOT STARTED (found 2026-09-23, small src fix + test)
+    run_pipeline.py:65 builds `file_list = [p for p in data_folder.iterdir() if p.is_file()]`. data/ contains
+    a `.gitkeep` (0 bytes, keeps the dir tracked), so every real run hands .gitkeep to _process_file ->
+    BioImage fails -> caught and collected in `failures`. It probably doesn't crash, but every run logs a
+    bogus failed "file" that can hide real failures. Same risk from .DS_Store / editor temp files.
+    Fix: filter `not p.name.startswith(".")` (the same predicate pipeline_tuning.ipynb's default-file
+    cell already uses, so notebook and pipeline agree on what a raw file is); also sorted() for a
+    deterministic processing order (iterdir order is filesystem-dependent). Regression test in
+    test_run_pipeline.py: tmp_path data dir with a .gitkeep + one fake file, assert _process_file is
+    called only for the real one. VERIFY FIRST that a real run actually logs .gitkeep as a failure.
 ---

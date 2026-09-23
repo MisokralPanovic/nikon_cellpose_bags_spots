@@ -162,7 +162,11 @@ OME-TIFF) — the specific `bioio-*` plugin used depends on file extension, hand
   `uv run spot-detector configs/config.yml`. **DONE** (committed 2026-09-10).
 - `pipeline_tuning.ipynb` (renamed from `pipeline_validation.ipynb`) — single-scene: run the stages,
   inspect with `stackview` / optional napari, sweep `bin_factor`/`prob_thresh` to pick config values.
-  Deliberately mirrors `run_pipeline._process_scene` with no divergence. Still being reworked.
+  Deliberately mirrors `run_pipeline._process_scene` with no divergence. Still being reworked: a
+  5-stage design that splits each parameter by re-run cost (bin_factor side-by-side panels vs. cheap
+  stitch_threshold/prob_thresh sliders over cached inference), implemented in 7 chunks. Plan, chunk status
+  and next step are in `todo.txt` item 9(b); chunk 1 (cleanup + hidden state) done 2026-09-23. The napari
+  cells are manual-only (needs Qt) and `import napari` lives in them, not in the top imports.
 - `pipeline_data_analysis.ipynb` (renamed from `analysis.ipynb`) — post-run analysis of
   `output/tables/*.csv`. Functionally done as of 2026-09-11 (markdown/docstring polish pending, see
   `todo.txt` item 9(c)): table picker (falls back to `_run_objects_{mode}.csv`, reads with
