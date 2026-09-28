@@ -323,6 +323,10 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
      synth_complex model instead of raising - so a real 2D run today silently skips the user's
      trained spot model. Either do_3d should be true, or spotiflow_models_path needs a 2D-trained
      model - needs a decision, not just a fallback.
+     CLOSED 2026-09-28 (user decision): no code change needed. The swap is NOT silent - utils.py:113
+     logs a "Mode conflict: ..." logger.warning - and detection.use_default_model (added in the item 5
+     pydantic migration) is the explicit opt-in for the pretrained model. Mode/model pairing is a config
+     choice per run, not a pipeline bug.
   -> concurrency stress test 2026-07-27: ran 2 concurrent 2D-mode workers for real on the 8GB
      card (worst case ~3.9GB/worker individually). Both completed correctly, peak COMBINED memory
      via nvidia-smi (not torch's self-reported stats) = ~6.96GB - but worker 2's log shows a
@@ -332,6 +336,34 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
      re-run this same concurrency test against a dense real scene (many objects/spots, not the
      1-object/49-spot calibration scene used so far) before finalizing worker count for the
      cluster request.
+
+  PLAN AGREED 2026-09-28 - remaining item 3 work, in this order (user starts 2026-09-29 with step 1;
+  same chunked format as before: lettered sub-edits + the one A/B/C decision + recommendation, user
+  implements, Claude reviews/tests, then docs):
+    STEP 1  torch.cuda.empty_cache() after a caught CUDA OOM   <- NEXT (2026-09-29)
+            Small src change in run_pipeline.py + test. There are 3 levels of `except Exception` blocks
+            (per-scene inside _process_file ~l.187, per-file in run_pipeline ~l.86, plus the QC-figure
+            call-site wrappers ~l.125/220/320) - all behind an `except FatalPipelineError: raise`.
+            DECISION to present: WHERE the cleanup goes - (A) per-scene except only (the OOM happens
+            inside _process_scene's segment/detect, the next scene is the one that needs the freed
+            memory), (B) both per-scene and per-file excepts, (C) a small helper called from any except
+            that fires, gated on the error actually being a CUDA OOM (torch.cuda.OutOfMemoryError, a
+            RuntimeError subclass) vs. calling empty_cache() unconditionally (cheap, a no-op without
+            CUDA - check torch.cuda.is_available() so CPU-only runs/tests never touch CUDA). Test via
+            mocker: patch _process_scene to raise torch.cuda.OutOfMemoryError, patch
+            torch.cuda.empty_cache, assert called + the next scene still processed.
+    STEP 2  crash-durable run rollup: rebuild _run_objects_{mode}.csv from the per-file
+            {condition}_objects_{mode}.csv already on disk (glob tab_dir), so a SIGKILLed run still
+            yields a run table. Watch: stale per-file CSVs from an EARLIER run in the same out_dir would
+            get globbed in too (same "resume vs. redo" hazard as the checkpointing note above) - decide
+            scope (e.g. only files processed in THIS run, or a separate `rebuild` entry point) before
+            coding.
+    STEP 3  re-measure GPU memory on a DENSE real scene (hands-on, no code) -> finalize worker count /
+            GPU size for the cluster request. Update the memory numbers above +
+            gpu_parallelization_capacity memory.
+    STEP 4  Snakemake layer (workflow/) incl. checkpoint/resume + parallel scheduling - separate,
+            larger project; plan when steps 1-3 are done.
+  CLOSED from this item's list 2026-09-28: the 2D/3D spotiflow model mismatch (see CLOSED note above).
 
 4. testing coverage   <- reassessed 2026-07-15, mostly in good shape
 - only real gap: qc_figures.py (691 lines, largest module) has zero tests, no test_qc_figures.py exists.
@@ -1200,7 +1232,20 @@ Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data 
     `segmentation.cellpose_model_path` / `detection.spotiflow_model_path` (singular) and added
     `use_default_model` flags. Fix when doing this pass.
 
-11. run_pipeline file listing picks up dotfiles   <- NOT STARTED (found 2026-09-23, small src fix + test)
+11. run_pipeline file listing picks up dotfiles   <- DONE 2026-09-28 (learning-mode: user wrote the fix,
+    Claude wrote the test on request, user ran the mutation check). Fix: run_pipeline.py:65 is now
+    sorted([p for p in data_folder.iterdir() if p.is_file() and not p.name.startswith(".")]) - option A
+    (explicit pathlib predicate) over B (glob.glob's implicit include_hidden=False default, which a later
+    "tidy-up" to Path.glob would silently undo - Path.glob DOES match dotfiles) and C (extension allowlist,
+    would silently skip any new bioio-plugin format). Test: TestRunPipeline.test_skips_hidden_files - real
+    files created out of alphabetical order + .gitkeep + .DS_Store, asserts the exact ordered list of
+    _process_file filepath names (filter + identity + sort in one assertion; the sort half is best-effort,
+    iterdir order is FS-dependent) and that no _run_failures_2D.csv is written. Mutation-checked: removing
+    the dotfile predicate fails the test ('.DS_Store' at index 0). 193 tests. Verification of the original
+    report: no past run was affected (.gitkeep created 09-16, last run 09-10), but BioImage(".gitkeep")
+    raises UnsupportedFileFormatError (plain Exception) -> would have been caught + logged as a bogus
+    failure on the next run.
+    ORIGINAL REPORT (found 2026-09-23):
     run_pipeline.py:65 builds `file_list = [p for p in data_folder.iterdir() if p.is_file()]`. data/ contains
     a `.gitkeep` (0 bytes, keeps the dir tracked), so every real run hands .gitkeep to _process_file ->
     BioImage fails -> caught and collected in `failures`. It probably doesn't crash, but every run logs a

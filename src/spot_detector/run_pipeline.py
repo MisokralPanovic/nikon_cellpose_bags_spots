@@ -62,7 +62,9 @@ def run_pipeline(config: PipelineConfig) -> pd.DataFrame | None:
     all_run_records = []
     failures = []
 
-    file_list = [p for p in data_folder.iterdir() if p.is_file()]
+    file_list = sorted(
+        [p for p in data_folder.iterdir() if p.is_file() and not p.name.startswith(".")]
+    )
 
     for filepath in file_list:
         try:

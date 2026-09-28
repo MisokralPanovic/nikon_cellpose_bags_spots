@@ -182,7 +182,9 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 192 tests collected as of 2026-09-09.
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 193 tests collected as of 2026-09-28.
+`run_pipeline` skips dotfiles in `raw_data_dir` (`.gitkeep` keeps `data/` tracked) and processes files in
+`sorted()` order — locked by `TestRunPipeline.test_skips_hidden_files` (`todo.txt` item 11).
 `test_segmentation.py` (13): its `mock_cellpose_2d`/`mock_cellpose_3d` fixtures use `model.eval.side_effect`
 (a `fake_eval(img, **kwargs)` closure) rather than `return_value`, so the fake mask matches its input's shape
 the way real Cellpose does — required for the non-divisible `bin_factor` tests (a fixed-size fake mask only

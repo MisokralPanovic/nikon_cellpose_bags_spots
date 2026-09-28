@@ -381,6 +381,46 @@ class TestRunPipeline:
         assert mock_run_summary.call_args[1]["experiment"] == "my_experiment"
         assert (out_dir / "tables" / "_run_objects_2D.csv").exists()
 
+    def test_skips_hidden_files(self, mocker: MockerFixture, make_config, tmp_path):
+        project_root = tmp_path / "my_experiment"
+        data_dir = project_root / "data"
+        data_dir.mkdir(parents=True)
+
+        (data_dir / "Treated_01.nd2").touch()
+        (data_dir / ".gitkeep").touch()
+        (data_dir / ".DS_Store").touch()
+        (data_dir / "Control_01.nd2").touch()
+
+        out_dir = project_root / "output"
+        config = make_config(
+            mode={"do_3d": False},
+            paths={"raw_data_dir": str(data_dir), "out_dir": str(out_dir)},
+        )
+
+        mocker.patch(
+            "spot_detector.run_pipeline.ModelBundle.load",
+            return_value=mocker.MagicMock(),
+        )
+
+        df = pd.DataFrame({"Object_Label": [1], "Condition": ["Any"]})
+
+        mock_process_file = mocker.patch(
+            "spot_detector.run_pipeline._process_file", return_value=df
+        )
+        mocker.patch("spot_detector.run_pipeline.make_run_summary_figure")
+
+        result = run_pipeline(config=config)
+
+        processed = [
+            c.kwargs["filepath"].name for c in mock_process_file.call_args_list
+        ]
+
+        assert processed == ["Control_01.nd2", "Treated_01.nd2"]
+        assert result is not None
+        assert mock_process_file.call_count == 2
+        assert len(result) == 2
+        assert not (out_dir / "tables" / "_run_failures_2D.csv").exists()
+
     def test_handles_corrupted_file(self, mocker: MockerFixture, make_config, tmp_path):
         # layout: tmp_path / my_experiment / data / *.nd2
         project_root = tmp_path / "my_experiment"
