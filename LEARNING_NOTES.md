@@ -5,41 +5,6 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
-## 2026-09-23 — tuning-notebook design: split params by cost (reconstructed)
-
-*(The original 09-17/09-22 write-up of this was lost to the Syncthing conflict mess around 09-21;
-reconstructed from session summaries. Full stage list + status audit in `todo.txt` item 9(b).)*
-
-**Split each knob by what re-running it costs.** Parameter tuning in `pipeline_tuning.ipynb` is really about
-cost: which part of the pipeline does changing this knob force you to re-run? The expensive parts are
-network inference, meaning Cellpose `eval` and Spotiflow `predict` on the GPU. Everything after inference is
-cheap CPU work:
-
-- `bin_factor` changes the image *fed into* Cellpose, so every value means a new inference. Too slow for a
-  slider → show a few values **side by side** instead.
-- `stitch_threshold` (3D) only affects how per-plane masks get linked across z *after* inference. Run
-  Cellpose per plane once, cache the unstitched masks, and re-stitch on every slider move with cellpose's
-  `stitch3D`.
-- `prob_thresh` only affects which heatmap peaks count as spots. Detect once at a low threshold, cache,
-  and re-filter by per-point probability on every slider move.
-
-General lesson: before building an interactive widget over a slow pipeline, find the stage where the
-expensive and cheap work separate, cache the expensive output, and put the slider only on the cheap part.
-
-**Gotcha: `stackview.switch` checks for `list`, not "sequence".** `display_min`/`display_max` accept one value
-or a per-image list, but stackview's check is `isinstance(x, list)`. A numpy array such as
-`np.percentile(stack, [1, 99.8])` fails that check. stackview then treats it as a single value and gives the
-*whole array* to every image. There was no error, just wrong contrast. Fix: build a real Python list of floats,
-one per image, in dict order. A duck-typing interface that type-checks for one concrete type fails silently
-on anything else.
-
-**Hidden notebook state.** The image-load cell used whichever scene the preview slider had last set, a side
-effect of the preview callback calling `img.set_scene`. The fix is an explicit `img.set_scene(scene_slider.value)`.
-Same class of bug: the napari `scale` came from "does the file have Z" rather than "is the pipeline in 3D
-mode", and those differ in 2D mode on a z-stack file.
-
----
-
 ## 2026-09-11 — designing a general plot template, not a one-off figure
 
 **The ask.** `pipeline_data_analysis.ipynb`'s final-figure cell started as a fixed boxplot (spot count by
@@ -79,9 +44,9 @@ category to place itself correctly) for no information the plot doesn't already 
 
 ## 2026-09-10 — notebooks as thin front-ends, and keeping them out of the diff
 
-**The consolidation.** Four notebooks (overlapping, some pre-package reimplementations) → three, each with
-one job: `pipeline_run.ipynb` (run the whole pipeline from Jupyter), `pipeline_tuning.ipynb` (single scene,
-sweep params, pick config values), `pipeline_data_analysis.ipynb` (post-run CSV analysis). The rule that
+**The consolidation.** Four notebooks (overlapping, some pre-package reimplementations) → two, each with
+one job: `pipeline_run.ipynb` (run the whole pipeline from Jupyter) and `pipeline_data_analysis.ipynb`
+(post-run CSV analysis). The rule that
 made the cut easy: **a notebook either calls the package or it doesn't exist.** The old
 `spot_detection_pipeline.ipynb` was a parallel reimplementation of the pipeline — every bug fix had to land
 twice, and it silently drifted. `pipeline_run.ipynb` is ~14 cells that call `load_config` + `run_pipeline`

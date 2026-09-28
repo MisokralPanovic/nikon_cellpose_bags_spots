@@ -154,19 +154,11 @@ are one segmented object each), plus matching PNGs under `output/figures/`.
 Input images are read via `bioio.BioImage`, which abstracts over Nikon `.nd2` and other formats (`.czi`, `.lif`,
 OME-TIFF) — the specific `bioio-*` plugin used depends on file extension, handled transparently by `bioio`.
 
-`notebooks/`, not part of the package, is mid-consolidation to three (`todo.txt` item 9, in progress
-2026-09-10):
+`notebooks/`, not part of the package, is consolidated to two (`todo.txt` item 9):
 
 - `pipeline_run.ipynb` — thin Jupyter front-end to `run_pipeline`, outputs shown inline (config table,
   run-summary figure, interactive `ipyfilechooser` browser over `output/`). Equivalent to
   `uv run spot-detector configs/config.yml`. **DONE** (committed 2026-09-10).
-- `pipeline_tuning.ipynb` (renamed from `pipeline_validation.ipynb`) — single-scene: run the stages,
-  inspect with `stackview` / optional napari, sweep `bin_factor`/`prob_thresh` to pick config values.
-  Deliberately mirrors `run_pipeline._process_scene` with no divergence. Still being reworked: a
-  5-stage design that splits each parameter by re-run cost (bin_factor side-by-side panels vs. cheap
-  stitch_threshold/prob_thresh sliders over cached inference), implemented in 7 chunks. Plan, chunk status
-  and next step are in `todo.txt` item 9(b); chunk 1 (cleanup + hidden state) done 2026-09-23. The napari
-  cells are manual-only (needs Qt) and `import napari` lives in them, not in the top imports.
 - `pipeline_data_analysis.ipynb` (renamed from `analysis.ipynb`) — post-run analysis of
   `output/tables/*.csv`. Functionally done as of 2026-09-11 (markdown/docstring polish pending, see
   `todo.txt` item 9(c)): table picker (falls back to `_run_objects_{mode}.csv`, reads with
@@ -179,8 +171,9 @@ OME-TIFF) — the specific `bioio-*` plugin used depends on file extension, hand
   log-scaling instead of matplotlib silently dropping them off the axis — design rationale in
   `LEARNING_NOTES.md` 2026-09-11).
 
-The old `spot_detection_pipeline.ipynb` (a pre-package reimplementation) and `pipeline_param_optimalisation.ipynb`
-(its param-sweep intent folded into `pipeline_tuning.ipynb`) have both been deleted.
+The old `spot_detection_pipeline.ipynb` (a pre-package reimplementation), `pipeline_param_optimalisation.ipynb`
+and the single-scene `pipeline_tuning.ipynb` (dropped 2026-09-28 — no single use case, see `todo.txt` 9(b))
+have all been deleted; don't recreate a tuning notebook without a new use case.
 
 `src/bash_scripts/` and `workflow/` (Snakemake) are an in-progress orchestration layer (repo setup, HPC conda/module
 loading, raw-data staging to/from Dropbox, result upload) — several scripts are stubs or contain scratch notes
