@@ -148,6 +148,16 @@ flag is `true` (enforced by a local `@model_validator` in each of `SegmentationC
 Model paths point outside the repo (`../_pipeline_assets/...`) — they're expected to exist in a sibling
 directory on the machine running the pipeline, not to be committed here.
 
+**Planned restructure (`todo.txt` item 3 STEP 2, design agreed 2026-10-09, not yet implemented):** per-file
+outputs are currently named by *condition*, so two files of one condition (`control_1.czi`, `control_2.czi`)
+overwrite each other's CSV/summary/QC PNGs, and their `Scene=0` rows merge in the summary figure. The pipeline is
+meant to be format-agnostic (one multi-scene `.nd2` or many single-scene `.czi` per condition), so the agreed
+shape is: `_process_file` writes `{stem}_objects_{mode}.csv` + per-scene QC PNGs only; after the file loop,
+`run_pipeline` builds the run table from the *expected* per-file CSV paths (derived from the input file list,
+never a glob of `tab_dir`), then makes one `make_condition_summary_figure` (renamed from
+`make_scene_summary_figure`) per `groupby("Condition")`, then the run figure. A new `Scene_ID` column (e.g.
+`control_1_S00`) makes scenes unique across files. Until that lands, the description above is still accurate.
+
 Output layout: `output/tables/{condition}_objects_{mode}.csv` and `output/tables/_run_objects_{mode}.csv` (rows
 are one segmented object each), plus matching PNGs under `output/figures/`.
 

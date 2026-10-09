@@ -376,6 +376,53 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
             get globbed in too (same "resume vs. redo" hazard as the checkpointing note above) - decide
             scope (e.g. only files processed in THIS run, or a separate `rebuild` entry point) before
             coding.
+            <- DESIGN AGREED 2026-10-09, NOT STARTED (user implements chunk by chunk, Claude reviews).
+            BUG FOUND while scoping (pre-existing, latent): per-file outputs are named by CONDITION, not
+            file. parse_condition_from_name strips the trailing number on purpose, so control_1.czi +
+            control_2.czi both -> "Control" and:
+              - {condition}_objects_{mode}.csv: file 2 OVERWRITES file 1
+              - {condition}_summary_{mode}.png: overwritten, shows only the last file's scenes
+              - {condition}_S{scene:02d}_..._qc.png: both files have a scene 0 -> overwritten
+              - Scene column: both files contribute Scene=0; make_scene_summary_figure groups by Scene
+                (qc_figures.py ~l.153) -> two different FOVs silently merged into one box
+            Hidden so far only because the run CSV is built from in-memory DataFrames (Source_File kept)
+            and data/ currently has one file per condition. A from-disk rebuild would expose it as data loss.
+            DESIGN INTENT (user, 2026-10-09): format-agnostic. .nd2 usually = one multi-scene file per
+            condition, .czi usually = one file per scene; control_1/control_2 must be treated as 2 scenes
+            of condition "control". Several FOVs per condition is the NORMAL case -> per-condition summary
+            figures must stay.
+            REJECTED: (a) process a whole condition at a time (_process_condition, scenes renumbered across
+            files) - durable unit becomes a whole condition, hours of work; (b) per-file names only, condition
+            figures dropped - loses the condition figure; (c) "add a trailing _1/_2 if the name is taken" -
+            name depends on what's on disk, not the input: re-running into the same out_dir writes _1 next
+            to the old file, a from-disk rebuild double-counts, every re-run adds a copy (not idempotent),
+            and _1 doesn't say which source file it is.
+            AGREED SHAPE: one job per file, then group by condition, then the whole run:
+              run_pipeline
+                for each file: _process_file -> per-scene QC PNGs + {stem}_objects_{mode}.csv
+                               (no summary figure in _process_file any more)
+                after the loop:
+                  run_df = concat of the EXPECTED per-file CSVs, paths derived from file_list - NEVER a
+                           glob of tab_dir, so leftovers from earlier runs can't leak in (same rule as
+                           Snakemake: expected outputs come from the inputs)
+                  write _run_objects_{mode}.csv
+                  for condition, cond_df in run_df.groupby("Condition"): make_condition_summary_figure
+                           -> {condition}_summary_{mode}.png, each in its own try/except (as now)
+                  make_run_summary_figure(run_df)
+            Grouping at the end (not "after a condition's last file" in the file loop) because sorted order
+            doesn't guarantee a condition's files are adjacent (Control_1 / Control-DrugA_1 / Control_X_1).
+            Accepted trade-off: condition figures now only appear at the end of a run; a killed run keeps
+            every per-file CSV but no condition figures (regenerable from the CSVs; own rule in STEP 4).
+            CHUNKS (easiest -> hardest):
+              1. name per-file outputs by filepath.stem: per-file CSV + per-scene QC PNGs; update the tests
+                 that check these paths. Open decision: QC PNG name {stem}_S00_... vs
+                 {condition}_{stem}_S00_...
+              2. Scene_ID column unique across files (e.g. control_1_S00; recommended: set in
+                 measure_objects next to Source_File/Scene); keep raw Scene for traceability; condition
+                 figure plots Scene_ID instead of Scene.
+              3. restructure the end of run_pipeline as above + rename make_scene_summary_figure ->
+                 make_condition_summary_figure (user agreed; touches qc_figures.py, run_pipeline.py,
+                 test_qc_figures.py, CLAUDE.md). Closes STEP 2.
     STEP 3  re-measure GPU memory on a DENSE real scene (hands-on, no code) -> finalize worker count /
             GPU size for the cluster request. Update the memory numbers above +
             gpu_parallelization_capacity memory.
@@ -1245,6 +1292,10 @@ Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data 
     pipeline stays correct in-run (in-memory concat), the breakage is on CSV read-back. Notebooks now read
     with `pd.read_csv(path, keep_default_na=False, na_values=[""])` as a belt-and-braces guard, but the
     filenames are the real fix. (See CLAUDE.md utils.py bullet, LEARNING_NOTES.md 2026-09-10.)
+    ALSO ADD (2026-10-09, interim until item 12's filename_pattern lands): date goes in the experiment folder
+    name or at the START of the filename, never at the end (Control_20261009 -> condition "Control", the date
+    is taken as the FOV index); a condition ending in a number needs an explicit FOV index after it (Day_3_1,
+    Sample-B12_FOV1), else Day_3 -> "Day". If item 12 is done first, document filename_pattern instead.
     Also: config schema block in README (lines 104-126) is STALE - shows `paths.cellpose_models_path` /
     `paths.spotiflow_models_path`, but the pydantic migration moved these to
     `segmentation.cellpose_model_path` / `detection.spotiflow_model_path` (singular) and added
@@ -1273,3 +1324,38 @@ Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data 
     test_run_pipeline.py: tmp_path data dir with a .gitkeep + one fake file, assert _process_file is
     called only for the real one. VERIFY FIRST that a real run actually logs .gitkeep as a failure.
 ---
+
+12. config-driven filename parsing (filename_pattern)   <- AGREED 2026-10-09, NOT STARTED, not yet scheduled
+    (user: "idk who is going to use this" -> can't rely on one naming convention, so build it properly).
+    PROBLEM: utils.parse_condition_from_name knows exactly one structure, "<condition><sep><FOV index>", via a
+    hard-coded regex `[-_][^-_]*?\d+$` that strips ONE trailing separator-delimited piece ending in a digit.
+    It guesses fields by position, so anything else in the filename is misread silently (checked 2026-10-09):
+      - Day_3 -> "Day", Sample-B12 -> "Sample"  (a biological label ending in a number is taken as the FOV)
+      - 20261009_Control_1 -> "20261009_Control"  (leading date stays in the condition -> one condition per
+        date; harmless for QC, but blocks pooling Control across days)
+      - Control_20261009 -> "Control"  (trailing date taken as the FOV -> all dates merged, no warning)
+      - Control_1_20261009 -> "Control_1"  (date stripped, real FOV index left in the condition)
+    The date/replicate is a third kind of variable (batch), neither condition nor experiment.
+    experiment = data_folder.parent.name only holds ONE value per run, so a run pooling biological replicates
+    from several days (N=3 independent experiments - common) can't currently express "Control, from day X".
+    IDEA: optional config key with a regex of NAMED groups; each group becomes a column on every row, e.g.
+        filename_pattern: "(?P<Date>\d{8})_(?P<Condition>.+)_(?P<FOV>\d+)"
+    -> Date / Condition / FOV columns, explicit instead of guessed by position.
+    OPEN QUESTIONS (decide when starting):
+      - which config section (paths? a new `naming` section?) + pydantic validation at load time: compile
+        the regex, REQUIRE a `Condition` group (everything downstream groups by it)
+      - default when unset: keep today's parse_condition_from_name behaviour so existing configs/tests still
+        work (likely: the default pattern IS today's rule)
+      - a filename that doesn't match: fail the file (-> failures CSV) vs. fall back to stem-as-condition
+        with a warning. Leaning fail-loud, a silent fallback is exactly the failure mode this item fixes.
+      - which extra groups flow where: into measure_objects' metadata columns (next to Source_File/Scene)
+        and the run CSV; should any (e.g. Date) affect groupby for the condition summary figure, or does that
+        stay Condition-only with batch handled in the notebook?
+      - overlap with the notebook's optional Condition -> metadata mapping cell
+        (pipeline_data_analysis.ipynb) - that cell is the post-hoc workaround this item would mostly replace.
+    ORDERING: after item 3 STEP 2 (per-file naming by stem + Scene_ID + condition groupby). STEP 2 makes the
+    outputs independent of parsing (file names come from the stem), so this item only changes the
+    Condition/metadata columns, not any output path.
+    INTERIM (until built): document the convention in README (item 10): date goes in the experiment folder
+    name or at the START of the filename, never at the end; a condition ending in a number needs an explicit
+    FOV index after it (Day_3_1, Sample-B12_FOV1).

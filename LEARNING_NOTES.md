@@ -5,6 +5,37 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-10-09 (cont'd) — output names should come from the input, not from what's on disk
+
+**How it came up.** Scoping a "rebuild the run CSV from the per-file CSVs" step turned up a latent bug: per-file
+outputs are named by *condition*, and `parse_condition_from_name` strips the trailing number on purpose, so
+`control_1.czi` and `control_2.czi` both write `Control_objects_2D.csv` — the second overwrites the first. It
+never showed because the run CSV is built in memory and `data/` happens to have one file per condition. A
+from-disk rebuild would have turned it into silent data loss.
+
+**The design intent it clarified.** The pipeline should be *format-agnostic*: a condition's scenes may arrive
+as one multi-scene `.nd2` or as many single-scene `.czi` files, and both mean "several fields of view of one
+condition". (Not *idempotent* — that means re-running gives the same result as running once. That property
+mattered here too, which is why the distinction is worth keeping.)
+
+**Why "add _1 if the name is taken" doesn't work.** It looks like the smallest fix, but the name then depends on
+the folder's history instead of the input. Re-running into the same output folder writes `_1` next to the old
+file, a rebuild from disk counts the condition twice, and every re-run adds another copy. Naming by
+`filepath.stem` is just as small a change, gives the same name for the same input every time, and lets the run
+table be rebuilt from a list of *expected* paths worked out from the inputs — so leftovers from earlier runs
+can't leak in. That is the same rule Snakemake is built on.
+
+**Where the condition figure goes.** It can't be made inside `_process_file`'s scene loop, which only ever sees
+one file. It moves to `run_pipeline`, after all files are done, as a `groupby("Condition")`. Grouping once at
+the end is safer than "after a condition's last file", because sorted order doesn't guarantee a condition's
+files are next to each other. Trade-off accepted: a killed run keeps every table but not the condition figures,
+which can be regenerated. Figures are cheap; tables are what has to survive.
+
+**General lesson.** A label used for grouping (condition) had quietly been reused as a file name, which has to
+be unique. Keeping the two jobs separate — file name from the file, condition as a column — is what fixes it.
+
+---
+
 ## 2026-10-09 — releasing GPU memory after an OOM, and a test that only looked like it covered a case
 
 **The ask.** After `_process_scene` hits a CUDA OOM and the per-scene `except` catches it, call
