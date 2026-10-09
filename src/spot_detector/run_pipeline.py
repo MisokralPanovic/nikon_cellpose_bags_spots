@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import torch
 from bioio import BioImage
 from tqdm.auto import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -165,6 +166,7 @@ def _process_file(
             ):
                 h.setLevel(logging.INFO)
         for scene in tqdm(range(num_scenes)):
+            oom = False
             try:
                 img.set_scene(scene)
                 logger.debug(f"Scene {scene:02d} / {num_scenes - 1}")
@@ -198,6 +200,11 @@ def _process_file(
                         "Error_Type": type(e).__name__,
                     }
                 )
+                oom = isinstance(e, torch.cuda.OutOfMemoryError)
+
+            if oom and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                logger.info("Released CUDA cache after OOM")
 
     if not all_scene_records:
         return None

@@ -182,9 +182,16 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 193 tests collected as of 2026-09-28.
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 195 tests collected as of 2026-10-09.
 `run_pipeline` skips dotfiles in `raw_data_dir` (`.gitkeep` keeps `data/` tracked) and processes files in
 `sorted()` order — locked by `TestRunPipeline.test_skips_hidden_files` (`todo.txt` item 11).
+`_process_file`'s scene loop calls `torch.cuda.empty_cache()` after a caught `torch.cuda.OutOfMemoryError`
+(`todo.txt` item 3 STEP 1, 2026-10-09) — via an `oom` flag set inside the `except` and acted on *after* the
+`try`/`except`, deliberately: inside the `except`, `e.__traceback__` still pins the Cellpose/Spotiflow frames
+and their GPU tensors, so `empty_cache()` there would free nothing. Don't "simplify" it back into the
+`except`. Locked by `TestProcessFile.test_releases_cuda_cache_after_oom` (the `side_effect` order
+`[OOM, df, Exception]` is load-bearing — it's what catches a non-reset flag) and
+`test_does_not_release_cache_from_non_oom_error`.
 `test_segmentation.py` (13): its `mock_cellpose_2d`/`mock_cellpose_3d` fixtures use `model.eval.side_effect`
 (a `fake_eval(img, **kwargs)` closure) rather than `return_value`, so the fake mask matches its input's shape
 the way real Cellpose does — required for the non-divisible `bin_factor` tests (a fixed-size fake mask only

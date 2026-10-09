@@ -299,6 +299,7 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
 - separately (not deferred): after catching a CUDA OOM, call torch.cuda.empty_cache() before continuing to
   the next scene/file - the caching allocator can leave fragmented/reserved memory behind after an OOM, so
   without this the *next* item can fail too even though it would otherwise fit
+  <- DONE 2026-10-09 (see STEP 1 below)
 - fully sequential file/scene loops, no parallel scheduling hooks for snakemake
 - GPU memory measured empirically 2026-07-27 (RTX 4060 laptop, 7.8GB total, real .nd2 scene from
   data/None_0.nd2, both configured checkpoints: cpsam_pseudo3d_4x_20260506 + bag_spot_model).
@@ -340,7 +341,24 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
   PLAN AGREED 2026-09-28 - remaining item 3 work, in this order (user starts 2026-09-29 with step 1;
   same chunked format as before: lettered sub-edits + the one A/B/C decision + recommendation, user
   implements, Claude reviews/tests, then docs):
-    STEP 1  torch.cuda.empty_cache() after a caught CUDA OOM   <- NEXT (2026-09-29)
+    STEP 1  torch.cuda.empty_cache() after a caught CUDA OOM   <- DONE 2026-10-09 (learning-mode: user
+            wrote impl + tests, Claude reviewed). Decision: (A) per-scene except only, with C's OOM gate
+            inline (no helper - ~4 lines, one call site). Per-file except left alone: a failure there is
+            almost always BioImage() on a bad file, never GPU.
+            IMPL GOTCHA (caught in review): empty_cache() must NOT run inside the `except` block - while
+            it's active, e.__traceback__ pins every frame down into Cellpose/Spotiflow, keeping their GPU
+            tensors alive, so there's nothing to release (PyTorch FAQ: do OOM recovery outside the except).
+            Final shape in _process_file's scene loop: `oom = False` reset at the top of each iteration,
+            `oom = isinstance(e, torch.cuda.OutOfMemoryError)` as the last line of the except, then
+            `if oom and torch.cuda.is_available(): empty_cache() + logger.info(...)` AFTER the try/except.
+            TESTS (TestProcessFile, 193 -> 195): test_releases_cuda_cache_after_oom (side_effect
+            [OOM, df, Exception] -> assert_called_once) + test_does_not_release_cache_from_non_oom_error
+            ([df, Exception, df] -> assert_not_called); both patch is_available=True + empty_cache.
+            Mutation-checked on a scratch copy: dropping the isinstance gate, deleting empty_cache(), and
+            hoisting `oom = False` out of the loop each fail >=1 test. The ORDER in the first test's
+            side_effect matters: a stale oom=True only leaks into a SUCCESSFUL next scene (every except
+            reassigns the flag), so the first draft [OOM, Exception, df] passed even with the reset hoisted
+            - reordered to [OOM, df, Exception] to catch it.
             Small src change in run_pipeline.py + test. There are 3 levels of `except Exception` blocks
             (per-scene inside _process_file ~l.187, per-file in run_pipeline ~l.86, plus the QC-figure
             call-site wrappers ~l.125/220/320) - all behind an `except FatalPipelineError: raise`.

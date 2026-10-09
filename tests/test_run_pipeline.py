@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 from pytest_mock import MockerFixture
 
 from spot_detector.exceptions import FatalPipelineError
@@ -284,6 +285,103 @@ class TestProcessFile:
                 tab_dir=tmp_path,
                 failures=failures,
             )
+
+    def test_releases_cuda_cache_after_oom(
+        self, mocker: MockerFixture, make_config, mock_models, tmp_path
+    ):
+        mock_img_instance = mocker.MagicMock()
+        mock_img_instance.scenes = ["scene0", "scene1", "scene2"]
+        mocker.patch(
+            "spot_detector.run_pipeline.BioImage", return_value=mock_img_instance
+        )
+
+        df_scene2 = pd.DataFrame({"Object_Label": [1], "Scene": [2]})
+        mocker.patch(
+            "spot_detector.run_pipeline._process_scene",
+            side_effect=[
+                torch.cuda.OutOfMemoryError("CUDA out of memory"),
+                df_scene2,
+                Exception("boom"),
+            ],
+        )
+
+        mocker.patch(
+            "spot_detector.run_pipeline.torch.cuda.is_available", return_value=True
+        )
+        mock_empty_cache = mocker.patch(
+            "spot_detector.run_pipeline.torch.cuda.empty_cache"
+        )
+        mocker.patch("spot_detector.run_pipeline.make_scene_summary_figure")
+
+        failures = []
+
+        result = _process_file(
+            filepath=Path("Control_01.nd2"),
+            config=make_config(mode={"do_3d": False}),
+            models=mock_models,
+            mode="2d",
+            experiment="exp1",
+            fig_dir=tmp_path,
+            tab_dir=tmp_path,
+            failures=failures,
+        )
+
+        mock_empty_cache.assert_called_once()
+        assert result is not None
+        assert len(result) == 1
+        assert failures is not None
+        assert len(failures) == 2
+        assert failures[0]["Error_Type"] == "OutOfMemoryError"
+        assert failures[1]["Error_Type"] == "Exception"
+
+    def test_does_not_release_cache_from_non_oom_error(
+        self, mocker: MockerFixture, make_config, mock_models, tmp_path
+    ):
+        mock_img_instance = mocker.MagicMock()
+        mock_img_instance.scenes = ["scene0", "scene1", "scene2"]
+        mocker.patch(
+            "spot_detector.run_pipeline.BioImage", return_value=mock_img_instance
+        )
+
+        df_scene0 = pd.DataFrame({"Object_Label": [1], "Scene": [0]})
+        df_scene2 = pd.DataFrame({"Object_Label": [1], "Scene": [2]})
+
+        mocker.patch(
+            "spot_detector.run_pipeline._process_scene",
+            side_effect=[
+                df_scene0,
+                Exception("boom"),
+                df_scene2,
+            ],
+        )
+
+        mocker.patch(
+            "spot_detector.run_pipeline.torch.cuda.is_available", return_value=True
+        )
+        mock_empty_cache = mocker.patch(
+            "spot_detector.run_pipeline.torch.cuda.empty_cache"
+        )
+        mocker.patch("spot_detector.run_pipeline.make_scene_summary_figure")
+
+        failures = []
+
+        result = _process_file(
+            filepath=Path("Control_01.nd2"),
+            config=make_config(mode={"do_3d": False}),
+            models=mock_models,
+            mode="2d",
+            experiment="exp1",
+            fig_dir=tmp_path,
+            tab_dir=tmp_path,
+            failures=failures,
+        )
+
+        mock_empty_cache.assert_not_called()
+        assert result is not None
+        assert len(result) == 2
+        assert failures is not None
+        assert len(failures) == 1
+        assert failures[0]["Error_Type"] == "Exception"
 
     def test_returns_none_when_no_scenes(
         self, mocker: MockerFixture, make_config, mock_models, tmp_path

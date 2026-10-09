@@ -5,6 +5,34 @@ kept as I work through `nikon_cellpose_bags_spots` with Claude Code. Newest entr
 
 ---
 
+## 2026-10-09 — releasing GPU memory after an OOM, and a test that only looked like it covered a case
+
+**The ask.** After `_process_scene` hits a CUDA OOM and the per-scene `except` catches it, call
+`torch.cuda.empty_cache()` so the *next* scene isn't starved by memory the crashed one left reserved in
+PyTorch's caching allocator (`todo.txt` item 3 STEP 1).
+
+**Where, and only when.** Per-scene `except` only — that's where segmentation/detection (the GPU work) run;
+the per-file `except` mostly sees `BioImage()` failing on a bad file. Gated on
+`isinstance(e, torch.cuda.OutOfMemoryError)` (a `RuntimeError` subclass, so the existing `except Exception`
+already catches it), plus `torch.cuda.is_available()` so CPU runs never touch CUDA. The gate also keeps the
+log honest: "Released CUDA cache after OOM" appears exactly when that happened.
+
+**The non-obvious part: not inside the `except`.** While an `except` block runs, the exception's traceback
+holds references to every frame it passed through — including Cellpose's internals and their local GPU
+tensors. Those tensors are still alive, so `empty_cache()` has nothing to release. Python deletes `e` when
+the block ends; *then* the frames die. Fix: set a flag in the `except`, act on it after the `try`/`except`
+(PyTorch's FAQ gives the same advice). A mock-based test can't see this difference at all — it's a review
+catch, not a test catch.
+
+**Mutation-checking the tests.** Broke the implementation three ways on a scratch copy and confirmed a test
+fails each time. One didn't: hoisting `oom = False` out of the loop still passed, because the test's
+`side_effect` was `[OOM, Exception, df]` and *every* `except` reassigns the flag — a stale `True` only leaks
+into a scene that *succeeds*. Reordering to `[OOM, df, Exception]` made it fail ("called 2 times"). Lesson:
+with mocks, a green test proves only the paths its inputs walk; the order of a `side_effect` list is part of
+what's being tested. Breaking the code on purpose is the cheap way to find out what a test really guards.
+
+---
+
 ## 2026-09-11 — designing a general plot template, not a one-off figure
 
 **The ask.** `pipeline_data_analysis.ipynb`'s final-figure cell started as a fixed boxplot (spot count by
