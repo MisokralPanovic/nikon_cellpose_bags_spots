@@ -139,7 +139,7 @@ class TestProcessScene:
 
         mock_qc.assert_called_once()
         kwargs = mock_qc.call_args[1]
-        assert kwargs["out_path"] == tmp_path / "Control_S03_2D_qc.png"
+        assert kwargs["out_path"] == tmp_path / "test_S03_2D_qc.png"
         assert kwargs["condition"] == "Control"
 
     def test_passes_filepath_name_to_measure_objects(
@@ -210,7 +210,7 @@ class TestProcessFile:
             mode="2d",
             experiment="exp1",
             fig_dir=tmp_path,
-            tab_dir=tmp_path,
+            per_file_dir=tmp_path,
             failures=[],
         )
 
@@ -218,7 +218,7 @@ class TestProcessFile:
         assert result is not None
         assert len(result) == 2
         mock_summary.assert_called_once()
-        assert (tmp_path / "Control_objects_2D.csv").exists()
+        assert (tmp_path / "Control_01_objects_2D.csv").exists()
 
     def test_handles_corrupted_scene(
         self, mocker: MockerFixture, make_config, mock_models, tmp_path
@@ -247,7 +247,7 @@ class TestProcessFile:
             mode="2d",
             experiment="exp1",
             fig_dir=tmp_path,
-            tab_dir=tmp_path,
+            per_file_dir=tmp_path,
             failures=failures,
         )
 
@@ -282,7 +282,7 @@ class TestProcessFile:
                 mode="2d",
                 experiment="exp1",
                 fig_dir=tmp_path,
-                tab_dir=tmp_path,
+                per_file_dir=tmp_path,
                 failures=failures,
             )
 
@@ -322,7 +322,7 @@ class TestProcessFile:
             mode="2d",
             experiment="exp1",
             fig_dir=tmp_path,
-            tab_dir=tmp_path,
+            per_file_dir=tmp_path,
             failures=failures,
         )
 
@@ -372,7 +372,7 @@ class TestProcessFile:
             mode="2d",
             experiment="exp1",
             fig_dir=tmp_path,
-            tab_dir=tmp_path,
+            per_file_dir=tmp_path,
             failures=failures,
         )
 
@@ -399,13 +399,40 @@ class TestProcessFile:
             mode="2d",
             experiment="exp1",
             fig_dir=tmp_path,
-            tab_dir=tmp_path,
+            per_file_dir=tmp_path,
             failures=[],
         )
 
         assert result is None
 
     def test_derives_condition_from_filename(
+        self, mocker: MockerFixture, make_config, mock_models, tmp_path
+    ):
+        mock_img_instance = mocker.MagicMock()
+        mock_img_instance.scenes = ["scene0"]
+        mocker.patch(
+            "spot_detector.run_pipeline.BioImage", return_value=mock_img_instance
+        )
+        mock_ps = mocker.patch(
+            "spot_detector.run_pipeline._process_scene",
+            return_value=pd.DataFrame({"Object_Label": [1]}),
+        )
+        mocker.patch("spot_detector.run_pipeline.make_scene_summary_figure")
+
+        _process_file(
+            filepath=Path("Treated-DrugA_FOV3.nd2"),
+            config=make_config(mode={"do_3d": False}),
+            models=mock_models,
+            mode="2d",
+            experiment="exp1",
+            fig_dir=tmp_path,
+            per_file_dir=tmp_path,
+            failures=[],
+        )
+
+        assert mock_ps.call_args.kwargs["condition"] == "Treated-DrugA"
+
+    def test_same_condition_files_get_separate_csvs(
         self, mocker: MockerFixture, make_config, mock_models, tmp_path
     ):
         mock_img_instance = mocker.MagicMock()
@@ -420,17 +447,29 @@ class TestProcessFile:
         mocker.patch("spot_detector.run_pipeline.make_scene_summary_figure")
 
         _process_file(
-            filepath=Path("Treated-DrugA_FOV3.nd2"),
+            filepath=Path("Control_1.nd2"),
             config=make_config(mode={"do_3d": False}),
             models=mock_models,
             mode="2d",
             experiment="exp1",
             fig_dir=tmp_path,
-            tab_dir=tmp_path,
+            per_file_dir=tmp_path,
             failures=[],
         )
 
-        assert (tmp_path / "Treated-DrugA_objects_2D.csv").exists()
+        _process_file(
+            filepath=Path("Control_2.nd2"),
+            config=make_config(mode={"do_3d": False}),
+            models=mock_models,
+            mode="2d",
+            experiment="exp1",
+            fig_dir=tmp_path,
+            per_file_dir=tmp_path,
+            failures=[],
+        )
+
+        assert (tmp_path / "Control_1_objects_2D.csv").exists()
+        assert (tmp_path / "Control_2_objects_2D.csv").exists()
 
 
 # =====================================================================
@@ -646,3 +685,4 @@ class TestRunPipeline:
 
         assert (out_dir / "figures").is_dir()
         assert (out_dir / "tables").is_dir()
+        assert (out_dir / "tables" / "per_file").is_dir()

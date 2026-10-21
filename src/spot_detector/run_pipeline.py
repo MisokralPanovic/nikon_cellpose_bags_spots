@@ -52,8 +52,10 @@ def run_pipeline(config: PipelineConfig) -> pd.DataFrame | None:
     out_dir = Path(config.paths.out_dir)
     fig_dir = out_dir / "figures"
     tab_dir = out_dir / "tables"
+    per_file_dir = tab_dir / "per_file"
     fig_dir.mkdir(parents=True, exist_ok=True)
     tab_dir.mkdir(parents=True, exist_ok=True)
+    per_file_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"=== Pipeline starting | mode={mode.upper()} ===")
     logger.info(f"Data folder: {data_folder}")
@@ -76,7 +78,7 @@ def run_pipeline(config: PipelineConfig) -> pd.DataFrame | None:
                 mode=mode,
                 experiment=experiment,
                 fig_dir=fig_dir,
-                tab_dir=tab_dir,
+                per_file_dir=per_file_dir,
                 failures=failures,
             )
             if scene_df is not None:
@@ -138,7 +140,7 @@ def _process_file(
     mode: str,
     experiment: str,
     fig_dir: Path,
-    tab_dir: Path,
+    per_file_dir: Path,
     failures: list,
 ) -> pd.DataFrame | None:
     """Process a single multi-scene image file. Returns combined scene DataFrame or None.
@@ -211,7 +213,7 @@ def _process_file(
 
     combined_df = pd.concat(all_scene_records, ignore_index=True)
 
-    csv_path = tab_dir / f"{condition}_objects_{mode.upper()}.csv"
+    csv_path = per_file_dir / f"{filepath.stem}_objects_{mode.upper()}.csv"
     combined_df.to_csv(csv_path, index=False)
     logger.info(f"Saved CSV: {csv_path.name}  ({len(combined_df)} rows)")
 
@@ -311,7 +313,7 @@ def _process_scene(
             condition=condition,
             scene=scene,
             mode=mode,
-            out_path=fig_dir / f"{condition}_S{scene:02d}_{mode.upper()}_qc.png",
+            out_path=fig_dir / f"{filepath.stem}_S{scene:02d}_{mode.upper()}_qc.png",
             segmentation_image=objects_stack,
             spots_image=spots_stack,
             masks=masks,
@@ -326,7 +328,7 @@ def _process_scene(
         raise
     except Exception as e:
         logger.warning(
-            f"Creating QC figure for {condition}_S{scene:02d}_{mode.upper()} failed ({e}), skipping",
+            f"Creating QC figure for {filepath.stem}_S{scene:02d}_{mode.upper()} failed ({e}), skipping",
             exc_info=True,
         )
 

@@ -376,7 +376,8 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
             get globbed in too (same "resume vs. redo" hazard as the checkpointing note above) - decide
             scope (e.g. only files processed in THIS run, or a separate `rebuild` entry point) before
             coding.
-            <- DESIGN AGREED 2026-10-09, NOT STARTED (user implements chunk by chunk, Claude reviews).
+            <- DESIGN AGREED 2026-10-09, IN PROGRESS (user implements chunk by chunk, Claude reviews).
+               Chunk 1 DONE 2026-10-21 (196 tests; mutation-checked on a scratchpad copy).
             BUG FOUND while scoping (pre-existing, latent): per-file outputs are named by CONDITION, not
             file. parse_condition_from_name strips the trailing number on purpose, so control_1.czi +
             control_2.czi both -> "Control" and:
@@ -399,24 +400,33 @@ hard evidence (grep'd line counts/timestamps, read tqdm's actual installed sourc
             and _1 doesn't say which source file it is.
             AGREED SHAPE: one job per file, then group by condition, then the whole run:
               run_pipeline
-                for each file: _process_file -> per-scene QC PNGs + {stem}_objects_{mode}.csv
+                for each file: _process_file -> per-scene QC PNGs + tables/per_file/{stem}_objects_{mode}.csv
                                (no summary figure in _process_file any more)
+                               [per_file/ subfolder DECIDED 2026-10-21: per-file CSVs are crash checkpoints,
+                               not the user-facing tables - keeps tables/ top level = per-condition + run]
                 after the loop:
                   run_df = concat of the EXPECTED per-file CSVs, paths derived from file_list - NEVER a
                            glob of tab_dir, so leftovers from earlier runs can't leak in (same rule as
                            Snakemake: expected outputs come from the inputs)
                   write _run_objects_{mode}.csv
-                  for condition, cond_df in run_df.groupby("Condition"): make_condition_summary_figure
-                           -> {condition}_summary_{mode}.png, each in its own try/except (as now)
+                  for condition, cond_df in run_df.groupby("Condition"): write
+                           tables/{condition}_objects_{mode}.csv (aggregate, regenerable from per_file/) +
+                           make_condition_summary_figure -> {condition}_summary_{mode}.png, the figure in its
+                           own try/except (as now)
                   make_run_summary_figure(run_df)
             Grouping at the end (not "after a condition's last file" in the file loop) because sorted order
             doesn't guarantee a condition's files are adjacent (Control_1 / Control-DrugA_1 / Control_X_1).
             Accepted trade-off: condition figures now only appear at the end of a run; a killed run keeps
             every per-file CSV but no condition figures (regenerable from the CSVs; own rule in STEP 4).
             CHUNKS (easiest -> hardest):
-              1. name per-file outputs by filepath.stem: per-file CSV + per-scene QC PNGs; update the tests
-                 that check these paths. Open decision: QC PNG name {stem}_S00_... vs
-                 {condition}_{stem}_S00_...
+              1. [DONE 2026-10-21: _process_file's tab_dir param renamed per_file_dir; condition test split
+                 into a condition-kwarg assert + test_same_condition_files_get_separate_csvs]
+                 name per-file outputs by filepath.stem: per-file CSV (-> tables/per_file/, mkdir'd in
+                 run_pipeline next to fig_dir/tab_dir) + per-scene QC PNGs; update the tests
+                 that check these paths. DECIDED 2026-10-21: QC PNG is {stem}_S{scene:02d}_{MODE}_qc.png
+                 (no condition prefix). The condition summary PNG stays {condition}_summary_{mode}.png and
+                 still lives in _process_file until chunk 3 moves it (so it still overwrites per condition
+                 in the meantime - accepted, chunk 3 fixes it).
               2. Scene_ID column unique across files (e.g. control_1_S00; recommended: set in
                  measure_objects next to Source_File/Scene); keep raw Scene for traceability; condition
                  figure plots Scene_ID instead of Scene.
@@ -1204,6 +1214,11 @@ Claude reviewed). ITEM 6 CLOSED. 192 tests, ruff + ruff-format clean, real-data 
        Config values are chosen by editing config.yml, running pipeline_run.ipynb and checking the per-scene
        QC figures. The earlier design (5-stage sweep plan, chunk list) is in this file's git history
        (e.g. `git show 097ddac:todo.txt`) - don't resurrect without a new use case.
+       ALSO DROPPED 2026-10-21: a stackview "inspect an outlier scene" section in pipeline_data_analysis.ipynb
+       (curtain raw-vs-masks, orthogonal for 3D; motive was showcasing stackview for the portfolio). Would need
+       either a 1-scene GPU re-run in the notebook or saved masks from the pipeline, and in 2D it shows little the
+       per-scene QC PNG doesn't. Same verdict as the tuning notebook: no use case beyond the QC figures. Only
+       thing it would add is 3D orthogonal/z-browsing - revisit if 3D QC ever proves insufficient.
 
    (c) pipeline_data_analysis.ipynb  (renamed from analysis.ipynb)   <- FUNCTIONALLY DONE 2026-09-11,
        markdown/docstring polish pending (WIP, uncommitted). All the original problems (bad glob, no

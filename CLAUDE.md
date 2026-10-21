@@ -52,7 +52,10 @@ gating before code leaves the machine. Requires `uv run pre-commit install --hoo
 An `nbstripout` hook (added 2026-09-10, `repo: https://github.com/kynan/nbstripout`) runs on every commit
 too, stripping `outputs` + `execution_count` from every `.ipynb` under `notebooks/` — the committed-output
 policy for the notebook consolidation (`todo.txt` item 9) is "strip everything", so notebook diffs stay
-code-only and don't carry embedded image/itables-JSON blobs. `ruff-check`/`ruff-format` also lint the
+code-only and don't carry embedded image/itables-JSON blobs. Since 2026-10-21 it also strips
+`metadata.kernelspec` + `metadata.language_info.version` (`--extra-keys`) — VS Code rewrites both per
+machine/interpreter (e.g. `"3.12.-1"`). The *whole* `kernelspec` goes, not just `display_name`: nbformat's schema
+requires `name` + `display_name` together, so stripping one leaves an invalid notebook. `ruff-check`/`ruff-format` also lint the
 notebooks (ruff globs `*.ipynb` by default). Like the ruff hooks, both modify files in place, so the first
 commit after they fire aborts with "files were modified" — re-`git add` and re-commit.
 
@@ -152,10 +155,11 @@ directory on the machine running the pipeline, not to be committed here.
 outputs are currently named by *condition*, so two files of one condition (`control_1.czi`, `control_2.czi`)
 overwrite each other's CSV/summary/QC PNGs, and their `Scene=0` rows merge in the summary figure. The pipeline is
 meant to be format-agnostic (one multi-scene `.nd2` or many single-scene `.czi` per condition), so the agreed
-shape is: `_process_file` writes `{stem}_objects_{mode}.csv` + per-scene QC PNGs only; after the file loop,
-`run_pipeline` builds the run table from the *expected* per-file CSV paths (derived from the input file list,
-never a glob of `tab_dir`), then makes one `make_condition_summary_figure` (renamed from
-`make_scene_summary_figure`) per `groupby("Condition")`, then the run figure. A new `Scene_ID` column (e.g.
+shape is: `_process_file` writes `tables/per_file/{stem}_objects_{mode}.csv` (crash checkpoint) +
+per-scene `{stem}_S{scene:02d}_{MODE}_qc.png` only; after the file loop, `run_pipeline` builds the run table
+from the *expected* per-file CSV paths (derived from the input file list, never a glob of `tab_dir`), then per
+`groupby("Condition")` writes the aggregate `tables/{condition}_objects_{mode}.csv` + one
+`make_condition_summary_figure` (renamed from `make_scene_summary_figure`), then the run figure. A new `Scene_ID` column (e.g.
 `control_1_S00`) makes scenes unique across files. Until that lands, the description above is still accurate.
 
 Output layout: `output/tables/{condition}_objects_{mode}.csv` and `output/tables/_run_objects_{mode}.csv` (rows
@@ -192,7 +196,7 @@ rather than working end-to-end automation; don't assume they run as-is.
 ## Testing conventions
 
 Tests live in `tests/`, one file per source module (`test_segmentation.py` covers `segmentation_detection.py`,
-`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 195 tests collected as of 2026-10-09.
+`test_object_measurement.py` covers `obejct_measurement.py`, etc.), 196 tests collected as of 2026-10-21.
 `run_pipeline` skips dotfiles in `raw_data_dir` (`.gitkeep` keeps `data/` tracked) and processes files in
 `sorted()` order — locked by `TestRunPipeline.test_skips_hidden_files` (`todo.txt` item 11).
 `_process_file`'s scene loop calls `torch.cuda.empty_cache()` after a caught `torch.cuda.OutOfMemoryError`
