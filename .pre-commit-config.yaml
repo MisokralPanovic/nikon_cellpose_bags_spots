@@ -18,3 +18,8 @@ repos:
     rev: 0.8.1
     hooks:
       - id: nbstripout
+        # VS Code rewrites these per machine/interpreter (e.g. "3.12.x", "3.12.-1") -> noisy diffs.
+        # Whole kernelspec, not just display_name: nbformat requires name + display_name together.
+        args:
+          - --extra-keys
+          - metadata.kernelspec metadata.language_info.version
